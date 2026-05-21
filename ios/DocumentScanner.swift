@@ -10,6 +10,9 @@ public class RNDocumentScanner: NSObject {
     /** @property  scannerViewController the custom scanner for page-limited scanning */
     private var scannerViewController: ScannerViewController?
 
+    /** @property scannerDelegateHandler retains the custom scanner promise bridge */
+    private var scannerDelegateHandler: ScannerDelegateHandler?
+
     @objc(scanDocument:resolve:reject:)
     public func scanDocument(
       _ options: NSDictionary,
@@ -55,16 +58,19 @@ public class RNDocumentScanner: NSObject {
     ) {
         if #available(iOS 13.0, *) {
             let scanner = ScannerViewController()
+            let delegateHandler = ScannerDelegateHandler(resolve: resolve, reject: reject, cleanup: { [weak self] in
+                self?.scannerViewController = nil
+                self?.scannerDelegateHandler = nil
+            })
             scanner.maxNumDocuments = maxNumDocuments
             scanner.autoConfirm = autoConfirm
             scanner.responseType = responseType
             scanner.croppedImageQuality = croppedImageQuality
-            scanner.delegate = ScannerDelegateHandler(resolve: resolve, reject: reject, cleanup: { [weak self] in
-                self?.scannerViewController = nil
-            })
+            scanner.delegate = delegateHandler
             scanner.modalPresentationStyle = .fullScreen
             
             self.scannerViewController = scanner
+            self.scannerDelegateHandler = delegateHandler
             
             guard let currentViewController = RCTPresentedViewController() else {
                 reject("error", "Unable to get the current view controller", nil)

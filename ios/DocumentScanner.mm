@@ -9,6 +9,10 @@
 #warning "DocumentScanner-Swift.h not found at build time"
 #endif
 
+@interface DocumentScanner ()
+@property (nonatomic, strong) RNDocumentScanner *activeDocumentScanner;
+@end
+
 @implementation DocumentScanner
 RCT_EXPORT_MODULE()
 
@@ -32,8 +36,19 @@ RCT_EXPORT_MODULE()
     scanDocumentOptions[@"autoConfirm"] = @(options.autoConfirm().value());
   }
 
-  RNDocumentScanner *documentScanner = [RNDocumentScanner new];
-  [documentScanner scanDocument:scanDocumentOptions resolve:resolve reject:reject];
+  self.activeDocumentScanner = [RNDocumentScanner new];
+
+  __weak typeof(self) weakSelf = self;
+  RCTPromiseResolveBlock retainedResolve = ^(id result) {
+    resolve(result);
+    weakSelf.activeDocumentScanner = nil;
+  };
+  RCTPromiseRejectBlock retainedReject = ^(NSString *code, NSString *message, NSError *error) {
+    reject(code, message, error);
+    weakSelf.activeDocumentScanner = nil;
+  };
+
+  [self.activeDocumentScanner scanDocument:scanDocumentOptions resolve:retainedResolve reject:retainedReject];
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:

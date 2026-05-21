@@ -22,11 +22,28 @@ function assertOrder(source, first, second, message) {
 }
 
 const documentScanner = read('ios/DocumentScanner.swift');
+const documentScannerModule = read('ios/DocumentScanner.mm');
 const scannerViewController = read(
   'ios/CustomScanner/ScannerViewController.swift'
 );
 const documentDetector = read('ios/CustomScanner/DocumentDetector.swift');
 const overlayMapper = read('ios/CustomScanner/DocumentOverlayMapper.swift');
+
+assertContains(
+  documentScannerModule,
+  '@property (nonatomic, strong) RNDocumentScanner *activeDocumentScanner;',
+  'The Objective-C++ module must retain RNDocumentScanner while an async scan is in progress'
+);
+assertContains(
+  documentScannerModule,
+  'self.activeDocumentScanner = [RNDocumentScanner new];',
+  'The Objective-C++ module must assign the active RNDocumentScanner before presenting UI'
+);
+assertContains(
+  documentScannerModule,
+  'weakSelf.activeDocumentScanner = nil;',
+  'The Objective-C++ module must release RNDocumentScanner after resolving or rejecting the promise'
+);
 
 const finishScanning = scannerViewController.slice(
   scannerViewController.indexOf('private func finishScanning()'),

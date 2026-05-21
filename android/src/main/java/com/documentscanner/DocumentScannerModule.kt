@@ -1,6 +1,7 @@
 package com.documentscanner
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -8,7 +9,9 @@ import android.util.Base64
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult
+import com.documentscanner.customscanner.ScannerActivity
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
@@ -47,6 +50,86 @@ class DocumentScannerModule(reactContext: ReactApplicationContext) :
 
   override fun scanDocument(options: ReadableMap, promise: Promise) {
     val currentActivity = reactApplicationContext.getCurrentActivity()
+    val maxNumDocuments = if (options.hasKey("maxNumDocuments")) options.getInt("maxNumDocuments") else null
+    val autoConfirm = if (options.hasKey("autoConfirm")) options.getBoolean("autoConfirm") else true
+
+    if (maxNumDocuments != null && maxNumDocuments > 0 && autoConfirm) {
+      // Use custom scanner when maxNumDocuments is set with autoConfirm
+      launchCustomScanner(currentActivity, options, maxNumDocuments, autoConfirm, promise)
+    } else if (maxNumDocuments != null && maxNumDocuments > 0) {
+      // Use custom scanner for page-limited scanning without autoConfirm too
+      launchCustomScanner(currentActivity, options, maxNumDocuments, autoConfirm, promise)
+    } else {
+      // Use ML Kit scanner (existing behavior)
+      launchMLKitScanner(currentActivity, options, promise)
+    }
+  }
+
+  // MARK: - Custom Scanner
+
+  private fun launchCustomScanner(
+    currentActivity: Activity?,
+    options: ReadableMap,
+    maxNumDocuments: Int,
+    autoConfirm: Boolean,
+    promise: Promise
+  ) {
+    if (currentActivity == null) {
+      promise.reject("error", "Unable to get current activity")
+      return
+    }
+
+    val croppedImageQuality = if (options.hasKey("croppedImageQuality")) {
+      options.getInt("croppedImageQuality")
+    } else {
+      100
+    }
+    val responseType = if (options.hasKey("responseType")) {
+      options.getString("responseType") ?: "imageFilePath"
+    } else {
+      "imageFilePath"
+    }
+
+    val scannerLauncher = (currentActivity as ComponentActivity).activityResultRegistry.register(
+      "custom-document-scanner",
+      StartActivityForResult()
+    ) { result ->
+      val response: WritableMap = WritableNativeMap()
+
+      if (result.resultCode == Activity.RESULT_OK) {
+        val scannedImages = result.data?.getStringArrayListExtra(ScannerActivity.EXTRA_SCANNED_IMAGES)
+        val docScanResults: WritableArray = WritableNativeArray()
+
+        scannedImages?.forEach { imagePath ->
+          docScanResults.pushString(imagePath)
+        }
+
+        response.putArray("scannedImages", docScanResults)
+        response.putString("status", "success")
+        promise.resolve(response)
+      } else {
+        response.putString("status", "cancel")
+        promise.resolve(response)
+      }
+    }
+
+    val intent = Intent(currentActivity, ScannerActivity::class.java).apply {
+      putExtra(ScannerActivity.EXTRA_MAX_NUM_DOCUMENTS, maxNumDocuments)
+      putExtra(ScannerActivity.EXTRA_AUTO_CONFIRM, autoConfirm)
+      putExtra(ScannerActivity.EXTRA_RESPONSE_TYPE, responseType)
+      putExtra(ScannerActivity.EXTRA_CROPPED_IMAGE_QUALITY, croppedImageQuality)
+    }
+
+    scannerLauncher.launch(intent)
+  }
+
+  // MARK: - ML Kit Scanner (existing behavior)
+
+  private fun launchMLKitScanner(
+    currentActivity: Activity?,
+    options: ReadableMap,
+    promise: Promise
+  ) {
     val response: WritableMap = WritableNativeMap()
 
     val documentScannerOptionsBuilder = GmsDocumentScannerOptions.Builder()

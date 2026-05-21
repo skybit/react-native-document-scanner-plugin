@@ -24,6 +24,14 @@ RCT_EXPORT_MODULE()
     scanDocumentOptions[@"croppedImageQuality"] = @(options.croppedImageQuality().value());
   }
 
+  if (options.maxNumDocuments().has_value()) {
+    scanDocumentOptions[@"maxNumDocuments"] = @(options.maxNumDocuments().value());
+  }
+
+  if (options.autoConfirm().has_value()) {
+    scanDocumentOptions[@"autoConfirm"] = @(options.autoConfirm().value());
+  }
+
   RNDocumentScanner *documentScanner = [RNDocumentScanner new];
   [documentScanner scanDocument:scanDocumentOptions resolve:resolve reject:reject];
 }

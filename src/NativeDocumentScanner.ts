@@ -12,7 +12,9 @@ export interface ScanDocumentOptions {
   croppedImageQuality?: number;
 
   /**
-   * Android only: The maximum number of photos an user can take (not counting photo retakes)
+   * The maximum number of photos an user can take (not counting photo retakes).
+   * On iOS, when set, a custom scanner with auto-capture will be used instead
+   * of the native VNDocumentCameraViewController.
    * @default: undefined
    */
   maxNumDocuments?: number;
@@ -23,6 +25,13 @@ export interface ScanDocumentOptions {
    * @default: ResponseType.ImageFilePath
    */
   responseType?: ResponseType;
+
+  /**
+   * When true and maxNumDocuments is set, the scanner will automatically
+   * close and return results after reaching the document limit.
+   * @default: true
+   */
+  autoConfirm?: boolean;
 }
 
 export enum ResponseType {

@@ -95,6 +95,7 @@ class ScannerViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         cameraManager.previewLayer.frame = previewView.bounds
+        overlayLayer.frame = previewView.bounds
     }
     
     override var prefersStatusBarHidden: Bool { return true }
@@ -235,26 +236,10 @@ class ScannerViewController: UIViewController {
             return
         }
         
-        let previewBounds = previewView.bounds
-        
-        // Convert Vision coordinates (normalized, bottom-left origin) to UIKit coordinates
-        let topLeft = CGPoint(x: obs.topLeft.x * previewBounds.width,
-                              y: (1 - obs.topLeft.y) * previewBounds.height)
-        let topRight = CGPoint(x: obs.topRight.x * previewBounds.width,
-                               y: (1 - obs.topRight.y) * previewBounds.height)
-        let bottomRight = CGPoint(x: obs.bottomRight.x * previewBounds.width,
-                                  y: (1 - obs.bottomRight.y) * previewBounds.height)
-        let bottomLeft = CGPoint(x: obs.bottomLeft.x * previewBounds.width,
-                                 y: (1 - obs.bottomLeft.y) * previewBounds.height)
-        
-        let path = UIBezierPath()
-        path.move(to: topLeft)
-        path.addLine(to: topRight)
-        path.addLine(to: bottomRight)
-        path.addLine(to: bottomLeft)
-        path.close()
-        
-        overlayLayer.path = path.cgPath
+        overlayLayer.path = DocumentOverlayMapper.path(
+            for: obs,
+            in: cameraManager.previewLayer
+        )
     }
     
     // MARK: - Actions
@@ -358,10 +343,18 @@ class ScannerViewController: UIViewController {
     
     /// Finish scanning and return results
     private func finishScanning() {
+        guard !scannedResults.isEmpty else {
+            delegate?.scannerViewController(self, didFailWithError: "No scanned image was captured")
+            return
+        }
+
+        let results = scannedResults
+        let callbackDelegate = delegate
         cameraManager.stopSession()
-        dismiss(animated: true) { [weak self] in
-            guard let self = self else { return }
-            self.delegate?.scannerViewController(self, didFinishWithImages: self.scannedResults)
+        callbackDelegate?.scannerViewController(self, didFinishWithImages: results)
+
+        if presentingViewController != nil {
+            dismiss(animated: true)
         }
     }
 }

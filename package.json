@@ -36,13 +36,14 @@
   ],
   "scripts": {
     "example": "yarn workspace react-native-document-scanner-example",
-    "test": "jest",
+    "test": "jest && yarn test:ios-custom-scanner",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "build": "bob build",
     "build:expo-plugin": "expo-module build --build ./expo-plugin",
-    "release": "release-it --only-version"
+    "release": "release-it --only-version",
+    "test:ios-custom-scanner": "./scripts/run-ios-custom-scanner-tests.sh"
   },
   "keywords": [
     "react-native",

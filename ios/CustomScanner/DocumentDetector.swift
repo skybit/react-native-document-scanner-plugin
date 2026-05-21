@@ -23,8 +23,8 @@ class DocumentDetector {
     
     // MARK: - Configuration
     
-    /// Minimum confidence threshold for document detection
-    private let confidenceThreshold: Float = 0.85
+    /// Minimum confidence threshold for document detection.
+    private let confidenceThreshold: Float = 0.7
     
     // MARK: - State
     
@@ -51,36 +51,13 @@ class DocumentDetector {
     
     /// Perform the Vision document detection request
     private func performDetection(on pixelBuffer: CVPixelBuffer) {
-        let request: VNImageBasedRequest
-        
-        if #available(iOS 15.0, *) {
-            // Use document segmentation (more accurate, ML-based) on iOS 15+
-            request = VNDetectDocumentSegmentationRequest()
-        } else {
-            // Fall back to rectangle detection on older iOS
-            let rectRequest = VNDetectRectanglesRequest()
-            rectRequest.maximumObservations = 1
-            rectRequest.minimumConfidence = confidenceThreshold
-            rectRequest.minimumSize = 0.2
-            request = rectRequest
-        }
-        
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
         
         do {
-            try handler.perform([request])
-            
-            var observation: VNRectangleObservation?
-            
-            if #available(iOS 15.0, *) {
-                if let segRequest = request as? VNDetectDocumentSegmentationRequest {
-                    observation = segRequest.results?.first
-                }
-            } else {
-                if let rectRequest = request as? VNDetectRectanglesRequest {
-                    observation = rectRequest.results?.first
-                }
-            }
+            let rectangleRequest = makeRectangleDetectionRequest()
+            try handler.perform([rectangleRequest])
+
+            let observation = bestObservation(from: rectangleRequest.results) ?? detectSegmentedDocument(on: pixelBuffer)
             
             if let obs = observation, obs.confidence >= confidenceThreshold {
                 handleDetectedDocument(obs)
@@ -90,6 +67,43 @@ class DocumentDetector {
         } catch {
             handleNoDocument()
         }
+    }
+
+    private func makeRectangleDetectionRequest() -> VNDetectRectanglesRequest {
+        let request = VNDetectRectanglesRequest()
+        request.maximumObservations = 4
+        request.minimumConfidence = confidenceThreshold
+        request.minimumSize = 0.18
+        request.minimumAspectRatio = 0.35
+        request.maximumAspectRatio = 2.6
+        request.quadratureTolerance = 25
+        return request
+    }
+
+    private func detectSegmentedDocument(on pixelBuffer: CVPixelBuffer) -> VNRectangleObservation? {
+        guard #available(iOS 15.0, *) else { return nil }
+
+        let request = VNDetectDocumentSegmentationRequest()
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
+
+        do {
+            try handler.perform([request])
+            return bestObservation(from: request.results)
+        } catch {
+            return nil
+        }
+    }
+
+    private func bestObservation(from observations: [VNRectangleObservation]?) -> VNRectangleObservation? {
+        observations?
+            .filter { $0.confidence >= confidenceThreshold }
+            .sorted { observationArea($0) > observationArea($1) }
+            .first
+    }
+
+    private func observationArea(_ observation: VNRectangleObservation) -> CGFloat {
+        let rect = boundingRect(for: observation)
+        return rect.width * rect.height
     }
     
     /// Handle a successfully detected document

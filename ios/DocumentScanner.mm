@@ -38,7 +38,7 @@ RCT_EXPORT_MODULE()
 
   self.activeDocumentScanner = [RNDocumentScanner new];
 
-  __weak typeof(self) weakSelf = self;
+  __weak DocumentScanner *weakSelf = self;
   RCTPromiseResolveBlock retainedResolve = ^(id result) {
     resolve(result);
     weakSelf.activeDocumentScanner = nil;

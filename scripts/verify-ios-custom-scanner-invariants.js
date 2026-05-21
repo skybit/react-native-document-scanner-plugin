@@ -41,6 +41,11 @@ assertContains(
 );
 assertContains(
   documentScannerModule,
+  '__weak DocumentScanner *weakSelf = self;',
+  'The Objective-C++ module must use ObjC++-compatible weak self capture syntax'
+);
+assertContains(
+  documentScannerModule,
   'weakSelf.activeDocumentScanner = nil;',
   'The Objective-C++ module must release RNDocumentScanner after resolving or rejecting the promise'
 );

@@ -17,24 +17,32 @@ class ImageProcessor {
         guard let ciImage = CIImage(image: normalizedImage) else { return nil }
         
         let imageSize = ciImage.extent.size
+        let corners = DocumentCornerCalibrator.calibrate(
+            DocumentCorners(
+                topLeft: observation.topLeft,
+                topRight: observation.topRight,
+                bottomRight: observation.bottomRight,
+                bottomLeft: observation.bottomLeft
+            )
+        )
         
         // Convert Vision normalized coordinates (0-1) to image pixel coordinates
         // Vision coordinates have origin at bottom-left
         let topLeft = CGPoint(
-            x: observation.topLeft.x * imageSize.width,
-            y: observation.topLeft.y * imageSize.height
+            x: corners.topLeft.x * imageSize.width,
+            y: corners.topLeft.y * imageSize.height
         )
         let topRight = CGPoint(
-            x: observation.topRight.x * imageSize.width,
-            y: observation.topRight.y * imageSize.height
+            x: corners.topRight.x * imageSize.width,
+            y: corners.topRight.y * imageSize.height
         )
         let bottomLeft = CGPoint(
-            x: observation.bottomLeft.x * imageSize.width,
-            y: observation.bottomLeft.y * imageSize.height
+            x: corners.bottomLeft.x * imageSize.width,
+            y: corners.bottomLeft.y * imageSize.height
         )
         let bottomRight = CGPoint(
-            x: observation.bottomRight.x * imageSize.width,
-            y: observation.bottomRight.y * imageSize.height
+            x: corners.bottomRight.x * imageSize.width,
+            y: corners.bottomRight.y * imageSize.height
         )
         
         // Apply CIPerspectiveCorrection filter
@@ -51,6 +59,47 @@ class ImageProcessor {
         let context = CIContext(options: [.useSoftwareRenderer: false])
         guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else { return nil }
         
+        return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+    }
+
+    /// Apply mild scan-oriented enhancement while preserving handwriting and red-pen marks.
+    static func enhanceScannedImage(_ image: UIImage) -> UIImage {
+        let normalizedImage = normalizeOrientation(image)
+        guard var output = CIImage(image: normalizedImage) else { return normalizedImage }
+        let originalExtent = output.extent
+
+        if let colorControls = CIFilter(name: "CIColorControls") {
+            colorControls.setValue(output, forKey: kCIInputImageKey)
+            colorControls.setValue(1.14, forKey: kCIInputContrastKey)
+            colorControls.setValue(0.02, forKey: kCIInputBrightnessKey)
+            colorControls.setValue(1.04, forKey: kCIInputSaturationKey)
+            if let adjusted = colorControls.outputImage {
+                output = adjusted
+            }
+        }
+
+        if let highlightShadow = CIFilter(name: "CIHighlightShadowAdjust") {
+            highlightShadow.setValue(output, forKey: kCIInputImageKey)
+            highlightShadow.setValue(0.15, forKey: "inputShadowAmount")
+            highlightShadow.setValue(0.95, forKey: "inputHighlightAmount")
+            if let adjusted = highlightShadow.outputImage {
+                output = adjusted
+            }
+        }
+
+        if let sharpen = CIFilter(name: "CISharpenLuminance") {
+            sharpen.setValue(output, forKey: kCIInputImageKey)
+            sharpen.setValue(0.35, forKey: kCIInputSharpnessKey)
+            if let adjusted = sharpen.outputImage {
+                output = adjusted
+            }
+        }
+
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let cgImage = context.createCGImage(output, from: originalExtent) else {
+            return normalizedImage
+        }
+
         return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
     }
 
@@ -93,10 +142,11 @@ class ImageProcessor {
         } else {
             processedImage = normalizedInput
         }
+        let enhancedImage = enhanceScannedImage(processedImage)
         
         // Convert to JPEG data with specified quality
         let quality = CGFloat(croppedImageQuality) / 100.0
-        guard let jpegData = processedImage.jpegData(compressionQuality: quality) else {
+        guard let jpegData = enhancedImage.jpegData(compressionQuality: quality) else {
             throw RuntimeError.message("Unable to convert image to JPEG")
         }
         

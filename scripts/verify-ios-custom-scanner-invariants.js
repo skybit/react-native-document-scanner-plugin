@@ -90,6 +90,11 @@ assertContains(
   'layerPointConverted(fromCaptureDevicePoint:',
   'Overlay mapping must use AVCaptureVideoPreviewLayer coordinate conversion'
 );
+assertContains(
+  overlayMapper,
+  'DocumentCornerCalibrator.calibrate',
+  'Overlay mapping must use calibrated document corners'
+);
 
 assertContains(
   cameraManager,
@@ -110,6 +115,26 @@ assertContains(
   imageProcessor,
   'orientation: .up',
   'Perspective-corrected images must be returned with .up orientation'
+);
+assertContains(
+  imageProcessor,
+  'DocumentCornerCalibrator.calibrate',
+  'Perspective correction must use the same calibrated document corners as the overlay'
+);
+assertContains(
+  imageProcessor,
+  'static func enhanceScannedImage(_ image: UIImage) -> UIImage',
+  'ImageProcessor must expose a scan enhancement step'
+);
+assertContains(
+  imageProcessor,
+  'CIColorControls',
+  'Scan enhancement must adjust color controls mildly'
+);
+assertContains(
+  imageProcessor,
+  'CISharpenLuminance',
+  'Scan enhancement must apply mild luminance sharpening'
 );
 
 assertOrder(

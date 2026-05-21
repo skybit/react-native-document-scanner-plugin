@@ -8,11 +8,19 @@ enum DocumentOverlayMapper {
         for observation: VNRectangleObservation,
         in previewLayer: AVCaptureVideoPreviewLayer
     ) -> CGPath {
+        let corners = DocumentCornerCalibrator.calibrate(
+            DocumentCorners(
+                topLeft: observation.topLeft,
+                topRight: observation.topRight,
+                bottomRight: observation.bottomRight,
+                bottomLeft: observation.bottomLeft
+            )
+        )
         let points = [
-            layerPoint(for: observation.topLeft, in: previewLayer),
-            layerPoint(for: observation.topRight, in: previewLayer),
-            layerPoint(for: observation.bottomRight, in: previewLayer),
-            layerPoint(for: observation.bottomLeft, in: previewLayer),
+            layerPoint(for: corners.topLeft, in: previewLayer),
+            layerPoint(for: corners.topRight, in: previewLayer),
+            layerPoint(for: corners.bottomRight, in: previewLayer),
+            layerPoint(for: corners.bottomLeft, in: previewLayer),
         ]
 
         let path = CGMutablePath()

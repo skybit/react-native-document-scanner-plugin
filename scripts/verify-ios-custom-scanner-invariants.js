@@ -26,6 +26,8 @@ const documentScannerModule = read('ios/DocumentScanner.mm');
 const scannerViewController = read(
   'ios/CustomScanner/ScannerViewController.swift'
 );
+const cameraManager = read('ios/CustomScanner/CameraManager.swift');
+const imageProcessor = read('ios/CustomScanner/ImageProcessor.swift');
 const documentDetector = read('ios/CustomScanner/DocumentDetector.swift');
 const overlayMapper = read('ios/CustomScanner/DocumentOverlayMapper.swift');
 
@@ -87,6 +89,27 @@ assertContains(
   overlayMapper,
   'layerPointConverted(fromCaptureDevicePoint:',
   'Overlay mapping must use AVCaptureVideoPreviewLayer coordinate conversion'
+);
+
+assertContains(
+  cameraManager,
+  'connection.videoOrientation = .portrait',
+  'Camera capture and preview connections must be locked to portrait orientation'
+);
+assertContains(
+  cameraManager,
+  'configurePortraitOrientation(for: photoOutput.connection(with: .video))',
+  'Photo capture must configure portrait orientation immediately before capture'
+);
+assertContains(
+  imageProcessor,
+  'static func normalizeOrientation(_ image: UIImage) -> UIImage',
+  'ImageProcessor must normalize UIImage orientation before writing JPEG data'
+);
+assertContains(
+  imageProcessor,
+  'orientation: .up',
+  'Perspective-corrected images must be returned with .up orientation'
 );
 
 assertOrder(

@@ -13,7 +13,8 @@ class ImageProcessor {
     ///   - observation: The detected document rectangle with corner coordinates
     /// - Returns: The perspective-corrected image, or nil if processing fails
     static func applyPerspectiveCorrection(to image: UIImage, observation: VNRectangleObservation) -> UIImage? {
-        guard let ciImage = CIImage(image: image) else { return nil }
+        let normalizedImage = normalizeOrientation(image)
+        guard let ciImage = CIImage(image: normalizedImage) else { return nil }
         
         let imageSize = ciImage.extent.size
         
@@ -50,7 +51,20 @@ class ImageProcessor {
         let context = CIContext(options: [.useSoftwareRenderer: false])
         guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else { return nil }
         
-        return UIImage(cgImage: cgImage)
+        return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+    }
+
+    /// Render the image pixels in their displayed orientation before writing JPEG data.
+    /// Downstream consumers often ignore EXIF orientation, which can turn portrait scans sideways.
+    static func normalizeOrientation(_ image: UIImage) -> UIImage {
+        guard image.imageOrientation != .up else { return image }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = image.scale
+
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
     }
     
     /// Process a captured image and return either a file path or base64 string
@@ -70,12 +84,14 @@ class ImageProcessor {
         responseType: String,
         croppedImageQuality: Int
     ) throws -> String {
+        let normalizedInput = normalizeOrientation(image)
+
         // Apply perspective correction if we have document corners
         let processedImage: UIImage
         if let obs = observation {
-            processedImage = applyPerspectiveCorrection(to: image, observation: obs) ?? image
+            processedImage = applyPerspectiveCorrection(to: normalizedInput, observation: obs) ?? normalizedInput
         } else {
-            processedImage = image
+            processedImage = normalizedInput
         }
         
         // Convert to JPEG data with specified quality

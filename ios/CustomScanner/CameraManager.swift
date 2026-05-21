@@ -97,15 +97,18 @@ class CameraManager: NSObject {
         
         if captureSession.canAddOutput(videoDataOutput) {
             captureSession.addOutput(videoDataOutput)
+            configurePortraitOrientation(for: videoDataOutput.connection(with: .video))
         }
         
         // Add photo output for high-quality capture
         if captureSession.canAddOutput(photoOutput) {
             captureSession.addOutput(photoOutput)
             photoOutput.isHighResolutionCaptureEnabled = true
+            configurePortraitOrientation(for: photoOutput.connection(with: .video))
         }
         
         captureSession.commitConfiguration()
+        configurePortraitOrientation(for: previewLayer.connection)
     }
     
     // MARK: - Capture
@@ -117,7 +120,16 @@ class CameraManager: NSObject {
         
         let settings = AVCapturePhotoSettings()
         settings.isHighResolutionPhotoEnabled = true
+        configurePortraitOrientation(for: photoOutput.connection(with: .video))
         photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+
+    private func configurePortraitOrientation(for connection: AVCaptureConnection?) {
+        guard let connection = connection else { return }
+
+        if connection.isVideoOrientationSupported {
+            connection.videoOrientation = .portrait
+        }
     }
 }
 
@@ -127,6 +139,9 @@ class CameraManager: NSObject {
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
+        if connection.isVideoOrientationSupported {
+            connection.videoOrientation = .portrait
+        }
         delegate?.cameraManager(self, didOutput: sampleBuffer)
     }
 }

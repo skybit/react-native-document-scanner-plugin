@@ -136,7 +136,7 @@ class ScannerViewController: UIViewController {
         // Done button (initially hidden)
         doneButton = UIButton(type: .system)
         doneButton.translatesAutoresizingMaskIntoConstraints = false
-        doneButton.setTitle("Done", for: .normal)
+        doneButton.setTitle(getLocalizedString(for: "done"), for: .normal)
         doneButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .semibold)
         doneButton.setTitleColor(.white, for: .normal)
         doneButton.backgroundColor = UIColor.systemBlue
@@ -156,7 +156,7 @@ class ScannerViewController: UIViewController {
         // Cancel button
         cancelButton = UIButton(type: .system)
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
-        cancelButton.setTitle("Cancel", for: .normal)
+        cancelButton.setTitle(getLocalizedString(for: "cancel"), for: .normal)
         cancelButton.setTitleColor(.white, for: .normal)
         cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
         cancelButton.addTarget(self, action: #selector(cancelButtonTapped), for: .touchUpInside)
@@ -168,7 +168,7 @@ class ScannerViewController: UIViewController {
         statusLabel.textColor = UIColor.white.withAlphaComponent(0.8)
         statusLabel.font = UIFont.systemFont(ofSize: 14)
         statusLabel.textAlignment = .center
-        statusLabel.text = "Position document in view"
+        statusLabel.text = getLocalizedString(for: "position_document")
         view.addSubview(statusLabel)
         
         // Layout constraints
@@ -267,7 +267,7 @@ class ScannerViewController: UIViewController {
     private func performCapture() {
         // Temporarily disable detection during capture
         documentDetector.isEnabled = false
-        statusLabel.text = "Capturing..."
+        statusLabel.text = getLocalizedString(for: "capturing")
         
         // Briefly flash the screen to indicate capture
         let flashView = UIView(frame: view.bounds)
@@ -314,7 +314,7 @@ class ScannerViewController: UIViewController {
                         // Continue scanning
                         self.documentDetector.resetStability()
                         self.documentDetector.isEnabled = true
-                        self.statusLabel.text = "Position next document"
+                        self.statusLabel.text = self.getLocalizedString(for: "position_next")
                     }
                 }
             } catch {
@@ -337,7 +337,7 @@ class ScannerViewController: UIViewController {
             // Show done button, hide capture button
             captureButton.isHidden = true
             doneButton.isHidden = false
-            statusLabel.text = "Scan complete. Tap Done to confirm."
+            statusLabel.text = getLocalizedString(for: "scan_complete")
         }
     }
     
@@ -355,6 +355,32 @@ class ScannerViewController: UIViewController {
 
         if presentingViewController != nil {
             dismiss(animated: true)
+        }
+    }
+
+    private func getLocalizedString(for key: String) -> String {
+        let languageCode = Locale.preferredLanguages.first?.prefix(2) ?? "en"
+        let isChinese = (languageCode == "zh")
+        
+        switch key {
+        case "cancel":
+            return isChinese ? "取消" : "Cancel"
+        case "done":
+            return isChinese ? "完成" : "Done"
+        case "position_document":
+            return isChinese ? "请将文档放入框内" : "Position document in view"
+        case "hold_steady":
+            return isChinese ? "请保持相机稳定..." : "Hold steady..."
+        case "auto_capturing":
+            return isChinese ? "正在自动捕获..." : "Auto-capturing..."
+        case "capturing":
+            return isChinese ? "正在捕获..." : "Capturing..."
+        case "position_next":
+            return isChinese ? "请将下一页放入框内" : "Position next document"
+        case "scan_complete":
+            return isChinese ? "扫描完成，点击完成确认。" : "Scan complete. Tap Done to confirm."
+        default:
+            return ""
         }
     }
 }
@@ -383,13 +409,13 @@ extension ScannerViewController: DocumentDetectorDelegate {
     func documentDetector(_ detector: DocumentDetector, didDetectDocument observation: VNRectangleObservation) {
         currentObservation = observation
         updateOverlay(with: observation)
-        statusLabel.text = "Hold steady..."
+        statusLabel.text = getLocalizedString(for: "hold_steady")
     }
     
     func documentDetector(_ detector: DocumentDetector, documentDidBecomeStable observation: VNRectangleObservation) {
         guard !isScanComplete else { return }
         currentObservation = observation
-        statusLabel.text = "Auto-capturing..."
+        statusLabel.text = getLocalizedString(for: "auto_capturing")
         performCapture()
     }
     
@@ -397,7 +423,7 @@ extension ScannerViewController: DocumentDetectorDelegate {
         currentObservation = nil
         updateOverlay(with: nil)
         if !isScanComplete {
-            statusLabel.text = "Position document in view"
+            statusLabel.text = getLocalizedString(for: "position_document")
         }
     }
 }

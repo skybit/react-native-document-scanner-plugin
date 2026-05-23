@@ -92,6 +92,11 @@ assertContains(
 );
 assertContains(
   overlayMapper,
+  'let capturePoint = CGPoint(x: 1 - visionPoint.y, y: visionPoint.x)',
+  'Overlay mapping must map portrait coordinates to landscape capture device coordinates'
+);
+assertContains(
+  overlayMapper,
   'DocumentCornerCalibrator.calibrate',
   'Overlay mapping must use calibrated document corners'
 );

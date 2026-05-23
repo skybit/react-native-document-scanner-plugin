@@ -51,7 +51,7 @@ class DocumentDetector {
     
     /// Perform the Vision document detection request
     private func performDetection(on pixelBuffer: CVPixelBuffer) {
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
         
         do {
             let rectangleRequest = makeRectangleDetectionRequest()
@@ -84,7 +84,7 @@ class DocumentDetector {
         guard #available(iOS 15.0, *) else { return nil }
 
         let request = VNDetectDocumentSegmentationRequest()
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
 
         do {
             try handler.perform([request])

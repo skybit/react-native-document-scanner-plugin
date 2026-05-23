@@ -34,7 +34,7 @@ enum DocumentOverlayMapper {
         for visionPoint: CGPoint,
         in previewLayer: AVCaptureVideoPreviewLayer
     ) -> CGPoint {
-        let capturePoint = CGPoint(x: visionPoint.x, y: 1 - visionPoint.y)
+        let capturePoint = CGPoint(x: 1 - visionPoint.y, y: visionPoint.x)
         return previewLayer.layerPointConverted(fromCaptureDevicePoint: capturePoint)
     }
 }

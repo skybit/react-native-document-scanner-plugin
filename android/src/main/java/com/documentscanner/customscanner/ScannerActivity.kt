@@ -159,7 +159,7 @@ class ScannerActivity : Activity() {
         topBar.addView(cancelButton)
 
         statusLabel = TextView(this).apply {
-            text = "Position document in view"
+            text = getLocalizedString("position_document")
             textSize = 14f
             setTextColor(Color.parseColor("#CCFFFFFF"))
             gravity = Gravity.CENTER
@@ -197,7 +197,7 @@ class ScannerActivity : Activity() {
 
         // Done button (initially hidden)
         doneButton = TextView(this).apply {
-            text = "Done"
+            text = getLocalizedString("done")
             textSize = 18f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
@@ -280,7 +280,7 @@ class ScannerActivity : Activity() {
 
             override fun onError(message: String) {
                 runOnUiThread {
-                    statusLabel.text = "Error: $message"
+                    statusLabel.text = getLocalizedString("error_prefix") + message
                 }
             }
         }
@@ -294,7 +294,7 @@ class ScannerActivity : Activity() {
                     currentCorners = corners
                     overlayView.setDocumentCorners(corners,
                         textureView.width, textureView.height)
-                    statusLabel.text = "Hold steady..."
+                    statusLabel.text = getLocalizedString("hold_steady")
                 }
             }
 
@@ -302,7 +302,7 @@ class ScannerActivity : Activity() {
                 runOnUiThread {
                     if (!isScanComplete) {
                         currentCorners = corners
-                        statusLabel.text = "Auto-capturing..."
+                        statusLabel.text = getLocalizedString("auto_capturing")
                         performCapture()
                     }
                 }
@@ -313,7 +313,7 @@ class ScannerActivity : Activity() {
                     currentCorners = null
                     overlayView.clearOverlay()
                     if (!isScanComplete) {
-                        statusLabel.text = "Position document in view"
+                        statusLabel.text = getLocalizedString("position_document")
                     }
                 }
             }
@@ -329,7 +329,7 @@ class ScannerActivity : Activity() {
 
     private fun performCapture() {
         documentDetector.isEnabled = false
-        statusLabel.text = "Capturing..."
+        statusLabel.text = getLocalizedString("capturing")
 
         // Flash effect
         val flashView = View(this).apply {
@@ -358,7 +358,7 @@ class ScannerActivity : Activity() {
         image.close()
 
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: run {
-            runOnUiThread { statusLabel.text = "Failed to process image" }
+            runOnUiThread { statusLabel.text = getLocalizedString("failed_process") }
             return
         }
 
@@ -382,7 +382,7 @@ class ScannerActivity : Activity() {
                 } else {
                     documentDetector.resetStability()
                     documentDetector.isEnabled = true
-                    statusLabel.text = "Position next document"
+                    statusLabel.text = getLocalizedString("position_next")
                 }
             }
         }.start()
@@ -398,7 +398,7 @@ class ScannerActivity : Activity() {
         } else {
             captureButton.visibility = View.GONE
             doneButton.visibility = View.VISIBLE
-            statusLabel.text = "Scan complete. Tap Done to confirm."
+            statusLabel.text = getLocalizedString("scan_complete")
         }
     }
 
@@ -425,5 +425,21 @@ class ScannerActivity : Activity() {
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private fun getLocalizedString(key: String): String {
+        val isChinese = java.util.Locale.getDefault().language == "zh"
+        return when (key) {
+            "done" -> if (isChinese) "完成" else "Done"
+            "position_document" -> if (isChinese) "请将文档放入框内" else "Position document in view"
+            "hold_steady" -> if (isChinese) "请保持相机稳定..." else "Hold steady..."
+            "auto_capturing" -> if (isChinese) "正在自动捕获..." else "Auto-capturing..."
+            "capturing" -> if (isChinese) "正在捕获..." else "Capturing..."
+            "position_next" -> if (isChinese) "请将下一页放入框内" else "Position next document"
+            "scan_complete" -> if (isChinese) "扫描完成，点击完成确认。" else "Scan complete. Tap Done to confirm."
+            "failed_process" -> if (isChinese) "处理图像失败" else "Failed to process image"
+            "error_prefix" -> if (isChinese) "错误: " else "Error: "
+            else -> ""
+        }
     }
 }

@@ -15,6 +15,55 @@ private func imageFromBase64(_ base64: String) -> UIImage {
     return image
 }
 
+private func makeSyntheticSkewedPaperImage() -> (image: UIImage, observation: VNRectangleObservation) {
+    let size = CGSize(width: 900, height: 1200)
+    let paperTopLeft = CGPoint(x: 150, y: 150)
+    let paperTopRight = CGPoint(x: 765, y: 210)
+    let paperBottomRight = CGPoint(x: 810, y: 1060)
+    let paperBottomLeft = CGPoint(x: 105, y: 1030)
+
+    let renderer = UIGraphicsImageRenderer(size: size)
+    let image = renderer.image { context in
+        UIColor(white: 0.52, alpha: 1).setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+
+        let paper = UIBezierPath()
+        paper.move(to: paperTopLeft)
+        paper.addLine(to: paperTopRight)
+        paper.addLine(to: paperBottomRight)
+        paper.addLine(to: paperBottomLeft)
+        paper.close()
+        UIColor(white: 0.72, alpha: 1).setFill()
+        paper.fill()
+
+        UIColor(white: 0.18, alpha: 1).setStroke()
+        for index in 0..<18 {
+            let y = 285 + CGFloat(index) * 34
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: 205, y: y))
+            path.addLine(to: CGPoint(x: 705, y: y + CGFloat(index % 3) * 3))
+            path.lineWidth = 5
+            path.stroke()
+        }
+
+        UIColor(red: 0.82, green: 0.08, blue: 0.06, alpha: 1).setStroke()
+        let redPath = UIBezierPath()
+        redPath.move(to: CGPoint(x: 560, y: 390))
+        redPath.addLine(to: CGPoint(x: 680, y: 485))
+        redPath.lineWidth = 8
+        redPath.stroke()
+    }
+
+    let observation = rectangle(
+        topLeft: CGPoint(x: paperTopLeft.x / size.width, y: 1 - paperTopLeft.y / size.height),
+        bottomLeft: CGPoint(x: paperBottomLeft.x / size.width, y: 1 - paperBottomLeft.y / size.height),
+        bottomRight: CGPoint(x: paperBottomRight.x / size.width, y: 1 - paperBottomRight.y / size.height),
+        topRight: CGPoint(x: paperTopRight.x / size.width, y: 1 - paperTopRight.y / size.height)
+    )
+
+    return (image, observation)
+}
+
 private func process(_ image: UIImage, observation: VNRectangleObservation?) -> UIImage {
     let processedBase64: String
     do {
@@ -30,6 +79,40 @@ private func process(_ image: UIImage, observation: VNRectangleObservation?) -> 
     }
 
     return imageFromBase64(processedBase64)
+}
+
+private func averageLuma(
+    _ image: UIImage,
+    xRange: ClosedRange<Int>,
+    yRange: ClosedRange<Int>
+) -> Double {
+    guard let cgImage = image.cgImage,
+          let dataProvider = cgImage.dataProvider,
+          let data = dataProvider.data,
+          let bytes = CFDataGetBytePtr(data) else {
+        fail("Unable to read image pixels")
+    }
+
+    let bytesPerPixel = max(cgImage.bitsPerPixel / 8, 1)
+    let minX = cgImage.width * xRange.lowerBound / 100
+    let maxX = cgImage.width * xRange.upperBound / 100
+    let minY = cgImage.height * yRange.lowerBound / 100
+    let maxY = cgImage.height * yRange.upperBound / 100
+    var total = 0.0
+    var count = 0
+
+    for y in stride(from: minY, to: maxY, by: 4) {
+        for x in stride(from: minX, to: maxX, by: 4) {
+            let offset = (y * cgImage.width + x) * bytesPerPixel
+            let r = Double(bytes[offset])
+            let g = Double(bytes[offset + min(1, bytesPerPixel - 1)])
+            let b = Double(bytes[offset + min(2, bytesPerPixel - 1)])
+            total += 0.299 * r + 0.587 * g + 0.114 * b
+            count += 1
+        }
+    }
+
+    return total / Double(max(count, 1))
 }
 
 private func rectangle(
@@ -140,6 +223,17 @@ struct ImageProcessorPhotoTestRunner {
             tightPreviewObservation,
             message: "Expected still-photo paper bounds when preview observation is stale full-frame"
         )
+
+        let synthetic = makeSyntheticSkewedPaperImage()
+        let syntheticProcessed = process(synthetic.image, observation: synthetic.observation)
+        let processedPaperLuma = averageLuma(
+            syntheticProcessed,
+            xRange: 35...65,
+            yRange: 7...14
+        )
+        if processedPaperLuma < 238 {
+            fail("Expected gray paper background to be whitened like a scanned page; paper luma=\(processedPaperLuma)")
+        }
 
         assertProcessedScan(process(sourceImage, observation: nil), differsFrom: sourceImage)
 

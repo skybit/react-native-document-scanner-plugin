@@ -151,12 +151,13 @@ class ImageProcessor {
     /// Apply mild scan-oriented enhancement while preserving handwriting and red-pen marks.
     static func enhanceScannedImage(_ image: UIImage) -> UIImage {
         let normalizedImage = normalizeOrientation(image)
-        guard var output = CIImage(image: normalizedImage) else { return normalizedImage }
+        let whitenedImage = whitenPaperBackground(normalizedImage)
+        guard var output = CIImage(image: whitenedImage) else { return whitenedImage }
         let originalExtent = output.extent
 
         if let colorControls = CIFilter(name: "CIColorControls") {
             colorControls.setValue(output, forKey: kCIInputImageKey)
-            colorControls.setValue(1.14, forKey: kCIInputContrastKey)
+            colorControls.setValue(1.18, forKey: kCIInputContrastKey)
             colorControls.setValue(0.02, forKey: kCIInputBrightnessKey)
             colorControls.setValue(1.04, forKey: kCIInputSaturationKey)
             if let adjusted = colorControls.outputImage {
@@ -187,6 +188,60 @@ class ImageProcessor {
         }
 
         return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+    }
+
+    private static func whitenPaperBackground(_ image: UIImage) -> UIImage {
+        guard let cgImage = image.cgImage else { return image }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return image
+        }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        for offset in stride(from: 0, to: pixels.count, by: bytesPerPixel) {
+            let red = Double(pixels[offset])
+            let green = Double(pixels[offset + 1])
+            let blue = Double(pixels[offset + 2])
+            let luma = 0.299 * red + 0.587 * green + 0.114 * blue
+            let colorSpread = max(red, green, blue) - min(red, green, blue)
+
+            if luma < 105 {
+                pixels[offset] = clampToByte(red * 0.78)
+                pixels[offset + 1] = clampToByte(green * 0.78)
+                pixels[offset + 2] = clampToByte(blue * 0.78)
+                continue
+            }
+
+            let lumaStrength = min(max((luma - 90) / 88, 0), 1)
+            let neutralStrength = colorSpread < 42 ? 0.98 : 0.34
+            let strength = lumaStrength * neutralStrength
+
+            pixels[offset] = clampToByte(red + (255 - red) * strength)
+            pixels[offset + 1] = clampToByte(green + (255 - green) * strength)
+            pixels[offset + 2] = clampToByte(blue + (255 - blue) * strength)
+        }
+
+        guard let output = context.makeImage() else { return image }
+        return UIImage(cgImage: output, scale: image.scale, orientation: .up)
+    }
+
+    private static func clampToByte(_ value: Double) -> UInt8 {
+        UInt8(min(max(value.rounded(), 0), 255))
     }
 
     /// Render the image pixels in their displayed orientation before writing JPEG data.

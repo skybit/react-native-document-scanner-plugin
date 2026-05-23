@@ -30,6 +30,9 @@ class DocumentDetector {
     
     /// Guards auto-capture so a transient white surface is not captured immediately.
     private var autoCaptureGate = DocumentAutoCaptureGate()
+
+    /// Smooths frame-to-frame Vision jitter before updating the overlay and stability gate.
+    private var observationSmoother = DocumentObservationSmoother()
     
     /// Whether detection is enabled
     var isEnabled: Bool = true
@@ -110,16 +113,17 @@ class DocumentDetector {
     private func handleDetectedDocument(_ observation: VNRectangleObservation) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            let smoothedObservation = self.observationSmoother.smooth(observation)
             
-            self.delegate?.documentDetector(self, didDetectDocument: observation)
+            self.delegate?.documentDetector(self, didDetectDocument: smoothedObservation)
 
             let result = self.autoCaptureGate.evaluate(
-                self.makeCandidate(from: observation),
+                self.makeCandidate(from: smoothedObservation),
                 timestamp: CACurrentMediaTime()
             )
 
             if result.shouldCapture {
-                self.delegate?.documentDetector(self, documentDidBecomeStable: observation)
+                self.delegate?.documentDetector(self, documentDidBecomeStable: smoothedObservation)
             }
         }
     }
@@ -129,6 +133,7 @@ class DocumentDetector {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.autoCaptureGate.reset()
+            self.observationSmoother.reset()
             self.delegate?.documentDetectorDidLoseDocument(self)
         }
     }
@@ -136,6 +141,7 @@ class DocumentDetector {
     /// Reset detection state (call after a successful capture)
     func resetStability() {
         autoCaptureGate.reset()
+        observationSmoother.reset()
     }
 
     private func makeCandidate(from observation: VNRectangleObservation) -> DocumentDetectionCandidate {

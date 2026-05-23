@@ -18,6 +18,13 @@ swiftc \
 /tmp/react-native-document-scanner-corner-calibrator-tests
 
 swiftc \
+  "$ROOT_DIR/ios/CustomScanner/DocumentObservationSmoother.swift" \
+  "$ROOT_DIR/scripts/observation-smoother-tests.swift" \
+  -o /tmp/react-native-document-scanner-observation-smoother-tests
+
+/tmp/react-native-document-scanner-observation-smoother-tests
+
+swiftc \
   "$ROOT_DIR/scripts/coordinate-mapping-tests.swift" \
   -o /tmp/react-native-document-scanner-coordinate-mapping-tests
 

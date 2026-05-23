@@ -186,9 +186,10 @@ class ImageProcessor {
     ) throws -> String {
         let normalizedInput = normalizeOrientation(image)
 
-        let documentObservation = observation ?? detectDocumentObservation(in: normalizedInput)
+        let documentObservation = detectDocumentObservation(in: normalizedInput) ?? observation
 
-        // Apply perspective correction if we have document corners
+        // Prefer corners detected from the captured still image. Live preview
+        // observations can be stale or mapped to a different camera buffer.
         let processedImage: UIImage
         if let obs = documentObservation {
             processedImage = applyPerspectiveCorrection(to: normalizedInput, observation: obs) ?? normalizedInput

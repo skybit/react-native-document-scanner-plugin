@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Vision
 
 private func fail(_ message: String) -> Never {
     fputs("ImageProcessor photo test failed: \(message)\n", stderr)
@@ -12,6 +13,37 @@ private func imageFromBase64(_ base64: String) -> UIImage {
         fail("Unable to decode processed base64 image")
     }
     return image
+}
+
+private func process(_ image: UIImage, observation: VNRectangleObservation?) -> UIImage {
+    let processedBase64: String
+    do {
+        processedBase64 = try ImageProcessor.processImage(
+            image,
+            observation: observation,
+            pageNumber: 0,
+            responseType: ResponseType.base64,
+            croppedImageQuality: 90
+        )
+    } catch {
+        fail("processImage threw \(error)")
+    }
+
+    return imageFromBase64(processedBase64)
+}
+
+private func assertProcessedScan(_ processedImage: UIImage, differsFrom sourceImage: UIImage) {
+    if Int(processedImage.size.width.rounded()) == Int(sourceImage.size.width.rounded()),
+       Int(processedImage.size.height.rounded()) == Int(sourceImage.size.height.rounded()) {
+        fail("Expected photo processing to detect and crop the document instead of returning original dimensions \(sourceImage.size)")
+    }
+
+    let sourceLuma = averageLuma(sourceImage)
+    let processedLuma = averageLuma(processedImage)
+
+    if processedLuma <= sourceLuma + 1.0 {
+        fail("Expected processed scan to be brighter than the source photo; source=\(sourceLuma), processed=\(processedLuma)")
+    }
 }
 
 private func averageLuma(_ image: UIImage) -> Double {
@@ -49,32 +81,20 @@ struct ImageProcessorPhotoTestRunner {
             fail("Unable to load fixture at \(fixturePath)")
         }
 
-        let processedBase64: String
-        do {
-            processedBase64 = try ImageProcessor.processImage(
-                sourceImage,
-                observation: nil,
-                pageNumber: 0,
-                responseType: ResponseType.base64,
-                croppedImageQuality: 90
-            )
-        } catch {
-            fail("processImage threw \(error)")
-        }
+        assertProcessedScan(process(sourceImage, observation: nil), differsFrom: sourceImage)
 
-        let processedImage = imageFromBase64(processedBase64)
+        let staleFullFrameObservation = VNRectangleObservation(
+            requestRevision: 1,
+            topLeft: CGPoint(x: 0, y: 1),
+            bottomLeft: CGPoint(x: 0, y: 0),
+            bottomRight: CGPoint(x: 1, y: 0),
+            topRight: CGPoint(x: 1, y: 1)
+        )
 
-        if Int(processedImage.size.width.rounded()) == Int(sourceImage.size.width.rounded()),
-           Int(processedImage.size.height.rounded()) == Int(sourceImage.size.height.rounded()) {
-            fail("Expected nil-observation photo processing to detect and crop the document instead of returning original dimensions \(sourceImage.size)")
-        }
-
-        let sourceLuma = averageLuma(sourceImage)
-        let processedLuma = averageLuma(processedImage)
-
-        if processedLuma <= sourceLuma + 1.0 {
-            fail("Expected processed scan to be brighter than the source photo; source=\(sourceLuma), processed=\(processedLuma)")
-        }
+        assertProcessedScan(
+            process(sourceImage, observation: staleFullFrameObservation),
+            differsFrom: sourceImage
+        )
 
         print("ImageProcessor photo tests passed")
     }

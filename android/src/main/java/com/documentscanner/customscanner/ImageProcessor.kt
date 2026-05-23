@@ -151,9 +151,11 @@ class ImageProcessor {
             val outPixels = IntArray(width * height)
 
             // Magic Color Filter parameters
-            val contrast = 1.35f
-            val brightness = 15f
+            val contrast = 1.30f
+            val brightness = 60f
             val saturation = 1.15f
+            val gamma = 2.2f
+            val thresh = 0.82f
 
             for (i in origPixels.indices) {
                 val c = origPixels[i]
@@ -166,10 +168,15 @@ class ImageProcessor {
                 val bg = ((bc shr 8) and 0xFF).coerceAtLeast(1)
                 val bb = (bc and 0xFF).coerceAtLeast(1)
 
-                // Division: orig / blur * 255
-                var nr = r * 255 / br
-                var ng = g * 255 / bg
-                var nb = b * 255 / bb
+                // Division: orig / blur
+                val vr = (r * 255 / br) / 255.0f
+                val vg = (g * 255 / bg) / 255.0f
+                val vb = (b * 255 / bb) / 255.0f
+
+                // Apply non-linear power curve to darken mid-tones (pencil) and push highlights to white
+                var nr = if (vr >= thresh) 255 else (Math.pow(vr.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
+                var ng = if (vg >= thresh) 255 else (Math.pow(vg.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
+                var nb = if (vb >= thresh) 255 else (Math.pow(vb.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
 
                 // Contrast & Brightness
                 nr = (((nr - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)

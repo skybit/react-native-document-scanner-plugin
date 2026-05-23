@@ -175,18 +175,27 @@ class ImageProcessor {
         let divideKernel = CIBlendKernel.divide
         var output = divideKernel.apply(foreground: blurredBg, background: ciImage) ?? ciImage
 
-        // 6. Boost contrast, saturation, and brightness slightly
+        // 6. Darken mid-tones (pencil writing) using Gamma Adjustment
+        if let gamma = CIFilter(name: "CIGammaAdjust") {
+            gamma.setValue(output, forKey: kCIInputImageKey)
+            gamma.setValue(2.2, forKey: "inputPower")
+            if let adjusted = gamma.outputImage {
+                output = adjusted
+            }
+        }
+
+        // 7. Boost contrast, saturation, and brightness to push background to white
         if let colorControls = CIFilter(name: "CIColorControls") {
             colorControls.setValue(output, forKey: kCIInputImageKey)
-            colorControls.setValue(1.50, forKey: kCIInputContrastKey)      // enhance contrast
-            colorControls.setValue(0.20, forKey: kCIInputBrightnessKey)    // brighten slightly
+            colorControls.setValue(1.30, forKey: kCIInputContrastKey)      // enhance contrast
+            colorControls.setValue(0.25, forKey: kCIInputBrightnessKey)    // brighten slightly
             colorControls.setValue(1.15, forKey: kCIInputSaturationKey)    // boost saturation
             if let adjusted = colorControls.outputImage {
                 output = adjusted
             }
         }
 
-        // 7. Sharpen Luminance
+        // 8. Sharpen Luminance
         if let sharpen = CIFilter(name: "CISharpenLuminance") {
             sharpen.setValue(output, forKey: kCIInputImageKey)
             sharpen.setValue(0.45, forKey: kCIInputSharpnessKey) // sharpen slightly more for extra text clarity

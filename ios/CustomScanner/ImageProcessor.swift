@@ -5,6 +5,57 @@ import CoreImage
 /// Processes captured images: perspective correction, quality compression, and saving
 @available(iOS 13.0, *)
 class ImageProcessor {
+    private static let confidenceThreshold: Float = 0.5
+
+    /// Detect document corners from the captured still image when the live preview
+    /// observation is unavailable or stale.
+    static func detectDocumentObservation(in image: UIImage) -> VNRectangleObservation? {
+        let normalizedImage = normalizeOrientation(image)
+        guard let ciImage = CIImage(image: normalizedImage) else { return nil }
+
+        let rectangleRequest = VNDetectRectanglesRequest()
+        rectangleRequest.maximumObservations = 4
+        rectangleRequest.minimumConfidence = confidenceThreshold
+        rectangleRequest.minimumSize = 0.12
+        rectangleRequest.minimumAspectRatio = 0.35
+        rectangleRequest.maximumAspectRatio = 2.8
+        rectangleRequest.quadratureTolerance = 35
+
+        let handler = VNImageRequestHandler(ciImage: ciImage, orientation: .up, options: [:])
+        do {
+            try handler.perform([rectangleRequest])
+            if let observation = bestObservation(from: rectangleRequest.results) {
+                return observation
+            }
+        } catch {
+            return nil
+        }
+
+        guard #available(iOS 15.0, *) else { return nil }
+
+        let segmentationRequest = VNDetectDocumentSegmentationRequest()
+        do {
+            try handler.perform([segmentationRequest])
+            return bestObservation(from: segmentationRequest.results)
+        } catch {
+            return nil
+        }
+    }
+
+    private static func bestObservation(from observations: [VNRectangleObservation]?) -> VNRectangleObservation? {
+        observations?
+            .filter { $0.confidence >= confidenceThreshold }
+            .sorted { observationArea($0) > observationArea($1) }
+            .first
+    }
+
+    private static func observationArea(_ observation: VNRectangleObservation) -> CGFloat {
+        let minX = min(observation.topLeft.x, observation.bottomLeft.x)
+        let maxX = max(observation.topRight.x, observation.bottomRight.x)
+        let minY = min(observation.bottomLeft.y, observation.bottomRight.y)
+        let maxY = max(observation.topLeft.y, observation.topRight.y)
+        return max(maxX - minX, 0) * max(maxY - minY, 0)
+    }
     
     /// Apply perspective correction to an image using the detected document corners
     ///
@@ -135,9 +186,11 @@ class ImageProcessor {
     ) throws -> String {
         let normalizedInput = normalizeOrientation(image)
 
+        let documentObservation = observation ?? detectDocumentObservation(in: normalizedInput)
+
         // Apply perspective correction if we have document corners
         let processedImage: UIImage
-        if let obs = observation {
+        if let obs = documentObservation {
             processedImage = applyPerspectiveCorrection(to: normalizedInput, observation: obs) ?? normalizedInput
         } else {
             processedImage = normalizedInput

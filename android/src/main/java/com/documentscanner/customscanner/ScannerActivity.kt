@@ -16,7 +16,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.TextureView
+import android.view.TextureView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.ByteArrayOutputStream
@@ -68,6 +68,37 @@ class ScannerActivity : Activity() {
     private var currentCorners: FloatArray? = null
     private var isScanComplete = false
 
+    // Preview detection loop
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var isDetectionRunning = false
+    private val detectionRunnable = object : Runnable {
+        override fun run() {
+            if (!isScanComplete && documentDetector.isEnabled && ::cameraManager.isInitialized) {
+                val texture = textureView
+                if (texture.isAvailable) {
+                    val width = texture.width
+                    val height = texture.height
+                    if (width > 0 && height > 0) {
+                        try {
+                            // Grab 1/4 size bitmap on UI thread
+                            val bitmap = texture.getBitmap(width / 4, height / 4)
+                            if (bitmap != null) {
+                                Thread {
+                                    documentDetector.detectDocument(bitmap)
+                                }.start()
+                            }
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
+                    }
+                }
+            }
+            if (isDetectionRunning) {
+                mainHandler.postDelayed(this, 180)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -104,6 +135,18 @@ class ScannerActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraManager.stopCamera()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isDetectionRunning = true
+        mainHandler.post(detectionRunnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isDetectionRunning = false
+        mainHandler.removeCallbacks(detectionRunnable)
     }
 
     override fun onRequestPermissionsResult(
@@ -292,8 +335,7 @@ class ScannerActivity : Activity() {
             override fun onDocumentDetected(corners: FloatArray) {
                 runOnUiThread {
                     currentCorners = corners
-                    overlayView.setDocumentCorners(corners,
-                        textureView.width, textureView.height)
+                    overlayView.setDocumentCorners(corners)
                     statusLabel.text = getLocalizedString("hold_steady")
                 }
             }
@@ -357,21 +399,32 @@ class ScannerActivity : Activity() {
         buffer.get(bytes)
         image.close()
 
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: run {
+        val rawBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: run {
             runOnUiThread { statusLabel.text = getLocalizedString("failed_process") }
             return
         }
 
         Thread {
-            val corrected = ImageProcessor.applyPerspectiveCorrection(bitmap, currentCorners)
+            // 1. Rotate raw photo to match display orientation based on EXIF
+            val rotatedBitmap = ImageProcessor.rotateBitmapIfNeeded(bytes, rawBitmap)
 
+            // 2. Perform perspective correction
+            val corrected = ImageProcessor.applyPerspectiveCorrection(rotatedBitmap, currentCorners)
+
+            // 3. Enhance document: division flat-field filter
+            val enhanced = ImageProcessor.enhanceDocument(corrected)
+
+            // 4. Save/encode enhanced bitmap
             val result = when (responseType) {
-                "base64" -> ImageProcessor.toBase64(corrected, croppedImageQuality)
-                else -> ImageProcessor.saveToFile(corrected, cacheDir, scannedResults.size, croppedImageQuality)
+                "base64" -> ImageProcessor.toBase64(enhanced, croppedImageQuality)
+                else -> ImageProcessor.saveToFile(enhanced, cacheDir, scannedResults.size, croppedImageQuality)
             }
 
-            if (corrected != bitmap) corrected.recycle()
-            bitmap.recycle()
+            // Cleanup bitmaps
+            if (enhanced != corrected) enhanced.recycle()
+            if (corrected != rotatedBitmap) corrected.recycle()
+            if (rotatedBitmap != rawBitmap) rotatedBitmap.recycle()
+            rawBitmap.recycle()
 
             runOnUiThread {
                 scannedResults.add(result)

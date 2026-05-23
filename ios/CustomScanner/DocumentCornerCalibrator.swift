@@ -8,7 +8,7 @@ struct DocumentCorners {
 }
 
 enum DocumentCornerCalibrator {
-    static let defaultPaddingRatio: CGFloat = 0.025
+    static let defaultPaddingRatio: CGFloat = 0.0
 
     static func calibrate(
         _ corners: DocumentCorners,

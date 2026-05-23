@@ -9,35 +9,51 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Processes captured images: perspective correction using Matrix.setPolyToPoly()
- * and saving as JPEG files or base64 strings.
+ * Processes captured images: perspective correction using Matrix.setPolyToPoly(),
+ * EXIF rotation, division-based document enhancement filter, and saving.
  */
 class ImageProcessor {
 
     companion object {
         /**
-         * Apply perspective correction to an image given 4 corner points.
+         * Apply perspective correction to an image given 4 normalized corner points.
          *
          * @param bitmap The source image
-         * @param corners 8 floats: top-left(x,y), top-right(x,y), bottom-right(x,y), bottom-left(x,y)
+         * @param corners 8 floats: top-left(x,y), top-right(x,y), bottom-right(x,y), bottom-left(x,y) (normalized 0.0 to 1.0)
          * @return The corrected bitmap
          */
         fun applyPerspectiveCorrection(bitmap: Bitmap, corners: FloatArray?): Bitmap {
-            if (corners == null || corners.size != 8) {
-                return bitmap // No corners, return original
+            val w = bitmap.width.toFloat()
+            val h = bitmap.height.toFloat()
+
+            // Source points (document corners in the original image)
+            val srcPoints = if (corners == null || corners.size != 8) {
+                // Fallback: default crop with a 1.5% margin around the image boundaries
+                val mx = w * 0.015f
+                val my = h * 0.015f
+                floatArrayOf(
+                    mx, my,          // top-left
+                    w - mx, my,      // top-right
+                    w - mx, h - my,  // bottom-right
+                    mx, h - my       // bottom-left
+                )
+            } else {
+                floatArrayOf(
+                    corners[0] * w, corners[1] * h,
+                    corners[2] * w, corners[3] * h,
+                    corners[4] * w, corners[5] * h,
+                    corners[6] * w, corners[7] * h
+                )
             }
 
             // Calculate the output dimensions based on document corners
-            val topWidth = distance(corners[0], corners[1], corners[2], corners[3])
-            val bottomWidth = distance(corners[6], corners[7], corners[4], corners[5])
-            val leftHeight = distance(corners[0], corners[1], corners[6], corners[7])
-            val rightHeight = distance(corners[2], corners[3], corners[4], corners[5])
+            val topWidth = distance(srcPoints[0], srcPoints[1], srcPoints[2], srcPoints[3])
+            val bottomWidth = distance(srcPoints[6], srcPoints[7], srcPoints[4], srcPoints[5])
+            val leftHeight = distance(srcPoints[0], srcPoints[1], srcPoints[6], srcPoints[7])
+            val rightHeight = distance(srcPoints[2], srcPoints[3], srcPoints[4], srcPoints[5])
 
             val outputWidth = Math.max(topWidth, bottomWidth).toInt().coerceIn(100, 4096)
             val outputHeight = Math.max(leftHeight, rightHeight).toInt().coerceIn(100, 4096)
-
-            // Source points (document corners in the original image)
-            val srcPoints = corners
 
             // Destination points (corners of the output rectangle)
             val dstPoints = floatArrayOf(
@@ -69,6 +85,186 @@ class ImageProcessor {
             canvas.drawBitmap(bitmap, matrix, paint)
 
             return outputBitmap
+        }
+
+        /**
+         * Rotate a bitmap based on EXIF orientation metadata
+         */
+        fun rotateBitmapIfNeeded(bytes: ByteArray, bitmap: Bitmap): Bitmap {
+            try {
+                val exifInterface = android.media.ExifInterface(java.io.ByteArrayInputStream(bytes))
+                val orientation = exifInterface.getAttributeInt(
+                    android.media.ExifInterface.TAG_ORIENTATION,
+                    android.media.ExifInterface.ORIENTATION_NORMAL
+                )
+                val matrix = Matrix()
+                var angle = 0f
+                when (orientation) {
+                    android.media.ExifInterface.ORIENTATION_ROTATE_90 -> angle = 90f
+                    android.media.ExifInterface.ORIENTATION_ROTATE_180 -> angle = 180f
+                    android.media.ExifInterface.ORIENTATION_ROTATE_270 -> angle = 270f
+                    else -> return bitmap
+                }
+                matrix.postRotate(angle)
+                val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (rotated != bitmap) {
+                    bitmap.recycle()
+                }
+                return rotated
+            } catch (e: Exception) {
+                return bitmap
+            }
+        }
+
+        /**
+         * Enhance document scan: division-based background whitening and contrast/saturation boost.
+         */
+        fun enhanceDocument(bitmap: Bitmap): Bitmap {
+            val width = bitmap.width
+            val height = bitmap.height
+
+            // 1. Create a downscaled version of the bitmap for background estimation
+            val scale = 8
+            val smallW = (width / scale).coerceAtLeast(10)
+            val smallH = (height / scale).coerceAtLeast(10)
+            val smallBitmap = Bitmap.createScaledBitmap(bitmap, smallW, smallH, true)
+
+            val smallPixels = IntArray(smallW * smallH)
+            smallBitmap.getPixels(smallPixels, 0, smallW, 0, 0, smallW, smallH)
+            smallBitmap.recycle()
+
+            // 2. Blur the downscaled version using horizontal and vertical box blur
+            val blurredSmallPixels = boxBlur(smallPixels, smallW, smallH, 6)
+            val blurredSmallBitmap = Bitmap.createBitmap(blurredSmallPixels, smallW, smallH, Bitmap.Config.ARGB_8888)
+
+            // 3. Upscale the blurred background map back to full resolution bilinearly
+            val blurredBgBitmap = Bitmap.createScaledBitmap(blurredSmallBitmap, width, height, true)
+            blurredSmallBitmap.recycle()
+
+            // 4. Perform division and contrast/saturation adjustment
+            val origPixels = IntArray(width * height)
+            val blurPixels = IntArray(width * height)
+            bitmap.getPixels(origPixels, 0, width, 0, 0, width, height)
+            blurredBgBitmap.getPixels(blurPixels, 0, width, 0, 0, width, height)
+            blurredBgBitmap.recycle()
+
+            val outPixels = IntArray(width * height)
+
+            // Magic Color Filter parameters
+            val contrast = 1.35f
+            val brightness = 15f
+            val saturation = 1.15f
+
+            for (i in origPixels.indices) {
+                val c = origPixels[i]
+                val r = (c shr 16) and 0xFF
+                val g = (c shr 8) and 0xFF
+                val b = c and 0xFF
+
+                val bc = blurPixels[i]
+                val br = ((bc shr 16) and 0xFF).coerceAtLeast(1)
+                val bg = ((bc shr 8) and 0xFF).coerceAtLeast(1)
+                val bb = (bc and 0xFF).coerceAtLeast(1)
+
+                // Division: orig / blur * 255
+                var nr = r * 255 / br
+                var ng = g * 255 / bg
+                var nb = b * 255 / bb
+
+                // Contrast & Brightness
+                nr = (((nr - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
+                ng = (((ng - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
+                nb = (((nb - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
+
+                // Saturation adjustment
+                if (saturation != 1.0f) {
+                    val gray = (0.299f * nr + 0.587f * ng + 0.114f * nb)
+                    nr = (gray + (nr - gray) * saturation).toInt().coerceIn(0, 255)
+                    ng = (gray + (ng - gray) * saturation).toInt().coerceIn(0, 255)
+                    nb = (gray + (nb - gray) * saturation).toInt().coerceIn(0, 255)
+                }
+
+                outPixels[i] = (0xFF000000.toInt()) or (nr shl 16) or (ng shl 8) or nb
+            }
+
+            val outBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            outBitmap.setPixels(outPixels, 0, width, 0, 0, width, height)
+            return outBitmap
+        }
+
+        private fun boxBlur(pixels: IntArray, width: Int, height: Int, radius: Int): IntArray {
+            val size = width * height
+            val out = IntArray(size)
+            val temp = IntArray(size)
+
+            // Horizontal pass
+            for (y in 0 until height) {
+                var rSum = 0
+                var gSum = 0
+                var bSum = 0
+                val rowOffset = y * width
+
+                for (x in -radius until width + radius) {
+                    val addX = x + radius
+                    if (addX < width) {
+                        val p = pixels[rowOffset + addX]
+                        rSum += (p shr 16) and 0xFF
+                        gSum += (p shr 8) and 0xFF
+                        bSum += p and 0xFF
+                    }
+
+                    val removeX = x - radius
+                    if (removeX >= 0) {
+                        val p = pixels[rowOffset + removeX]
+                        rSum -= (p shr 16) and 0xFF
+                        gSum -= (p shr 8) and 0xFF
+                        bSum -= p and 0xFF
+                    }
+
+                    if (x in 0 until width) {
+                        val count = Math.min(x + radius, width - 1) - Math.max(x - radius, 0) + 1
+                        val r = rSum / count
+                        val g = gSum / count
+                        val b = bSum / count
+                        temp[rowOffset + x] = (0xFF000000.toInt()) or (r shl 16) or (g shl 8) or b
+                    }
+                }
+            }
+
+            // Vertical pass
+            for (x in 0 until width) {
+                var rSum = 0
+                var gSum = 0
+                var bSum = 0
+
+                for (y in -radius until height + radius) {
+                    val addY = y + radius
+                    if (addY < height) {
+                        val p = temp[addY * width + x]
+                        rSum += (p shr 16) and 0xFF
+                        gSum += (p shr 8) and 0xFF
+                        bSum += p and 0xFF
+                    }
+
+                    val removeY = y - radius
+                    if (removeY >= 0) {
+                        val p = temp[removeY * width + x]
+                        rSum -= (p shr 16) and 0xFF
+                        gSum -= (p shr 8) and 0xFF
+                        bSum -= p and 0xFF
+                    }
+
+                    if (y in 0 until height) {
+                        val count = Math.min(y + radius, height - 1) - Math.max(y - radius, 0) + 1
+                        val r = rSum / count
+                        val g = gSum / count
+                        val b = bSum / count
+                        out[y * width + x] = (0xFF000000.toInt()) or (r shl 16) or (g shl 8) or b
+                    }
+                }
+            }
+
+            return out
         }
 
         /**

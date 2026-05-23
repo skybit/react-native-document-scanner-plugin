@@ -56,6 +56,41 @@ class ImageProcessor {
         let maxY = max(observation.topLeft.y, observation.topRight.y)
         return max(maxX - minX, 0) * max(maxY - minY, 0)
     }
+
+    static func selectDocumentObservation(
+        capturedObservation: VNRectangleObservation?,
+        previewObservation: VNRectangleObservation?
+    ) -> VNRectangleObservation? {
+        guard let capturedObservation = capturedObservation else {
+            return previewObservation
+        }
+        guard let previewObservation = previewObservation else {
+            return capturedObservation
+        }
+
+        let capturedArea = observationArea(capturedObservation)
+        let previewArea = observationArea(previewObservation)
+        let minimumPlausibleArea: CGFloat = 0.12
+        let oversizedArea: CGFloat = 0.88
+
+        if previewArea < minimumPlausibleArea {
+            return capturedObservation
+        }
+        if capturedArea < minimumPlausibleArea {
+            return previewObservation
+        }
+        if capturedArea >= oversizedArea && previewArea < capturedArea {
+            return previewObservation
+        }
+        if previewArea >= oversizedArea && capturedArea < previewArea {
+            return capturedObservation
+        }
+        if capturedArea > previewArea * 1.18 {
+            return previewObservation
+        }
+
+        return capturedObservation
+    }
     
     /// Apply perspective correction to an image using the detected document corners
     ///
@@ -186,10 +221,13 @@ class ImageProcessor {
     ) throws -> String {
         let normalizedInput = normalizeOrientation(image)
 
-        let documentObservation = detectDocumentObservation(in: normalizedInput) ?? observation
+        let documentObservation = selectDocumentObservation(
+            capturedObservation: detectDocumentObservation(in: normalizedInput),
+            previewObservation: observation
+        )
 
-        // Prefer corners detected from the captured still image. Live preview
-        // observations can be stale or mapped to a different camera buffer.
+        // Compare still-photo and preview detections: still detection can grab
+        // the desk/background, while preview detection can be stale.
         let processedImage: UIImage
         if let obs = documentObservation {
             processedImage = applyPerspectiveCorrection(to: normalizedInput, observation: obs) ?? normalizedInput

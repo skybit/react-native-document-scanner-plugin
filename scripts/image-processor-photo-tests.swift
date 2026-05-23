@@ -32,6 +32,35 @@ private func process(_ image: UIImage, observation: VNRectangleObservation?) -> 
     return imageFromBase64(processedBase64)
 }
 
+private func rectangle(
+    topLeft: CGPoint,
+    bottomLeft: CGPoint,
+    bottomRight: CGPoint,
+    topRight: CGPoint
+) -> VNRectangleObservation {
+    VNRectangleObservation(
+        requestRevision: 1,
+        topLeft: topLeft,
+        bottomLeft: bottomLeft,
+        bottomRight: bottomRight,
+        topRight: topRight
+    )
+}
+
+private func assertSameObservation(
+    _ actual: VNRectangleObservation?,
+    _ expected: VNRectangleObservation,
+    message: String
+) {
+    guard let actual = actual else {
+        fail("\(message): expected an observation")
+    }
+
+    if actual !== expected {
+        fail(message)
+    }
+}
+
 private func assertProcessedScan(_ processedImage: UIImage, differsFrom sourceImage: UIImage) {
     if Int(processedImage.size.width.rounded()) == Int(sourceImage.size.width.rounded()),
        Int(processedImage.size.height.rounded()) == Int(sourceImage.size.height.rounded()) {
@@ -81,10 +110,40 @@ struct ImageProcessorPhotoTestRunner {
             fail("Unable to load fixture at \(fixturePath)")
         }
 
+        let tightPreviewObservation = rectangle(
+            topLeft: CGPoint(x: 0.18, y: 0.86),
+            bottomLeft: CGPoint(x: 0.16, y: 0.16),
+            bottomRight: CGPoint(x: 0.84, y: 0.14),
+            topRight: CGPoint(x: 0.82, y: 0.88)
+        )
+        let largeStillObservation = rectangle(
+            topLeft: CGPoint(x: 0.02, y: 0.98),
+            bottomLeft: CGPoint(x: 0.02, y: 0.02),
+            bottomRight: CGPoint(x: 0.98, y: 0.02),
+            topRight: CGPoint(x: 0.98, y: 0.98)
+        )
+
+        assertSameObservation(
+            ImageProcessor.selectDocumentObservation(
+                capturedObservation: largeStillObservation,
+                previewObservation: tightPreviewObservation
+            ),
+            tightPreviewObservation,
+            message: "Expected tighter preview paper bounds when still-photo detection includes too much background"
+        )
+
+        assertSameObservation(
+            ImageProcessor.selectDocumentObservation(
+                capturedObservation: tightPreviewObservation,
+                previewObservation: largeStillObservation
+            ),
+            tightPreviewObservation,
+            message: "Expected still-photo paper bounds when preview observation is stale full-frame"
+        )
+
         assertProcessedScan(process(sourceImage, observation: nil), differsFrom: sourceImage)
 
-        let staleFullFrameObservation = VNRectangleObservation(
-            requestRevision: 1,
+        let staleFullFrameObservation = rectangle(
             topLeft: CGPoint(x: 0, y: 1),
             bottomLeft: CGPoint(x: 0, y: 0),
             bottomRight: CGPoint(x: 1, y: 0),

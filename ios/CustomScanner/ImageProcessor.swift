@@ -154,41 +154,39 @@ class ImageProcessor {
         guard let ciImage = CIImage(image: normalizedImage) else { return normalizedImage }
         let originalExtent = ciImage.extent
 
-        // 1. Clamp edges to prevent black borders during Gaussian Blur
+        // 1. Clamp edges to prevent black borders during downscaling and blur
         let clamped = ciImage.clampedToExtent()
         
-        // 2. Blur the image with a large radius (e.g. 35) to estimate the background illumination map
-        guard let blurFilter = CIFilter(name: "CIGaussianBlur") else { return normalizedImage }
-        blurFilter.setValue(clamped, forKey: kCIInputImageKey)
-        blurFilter.setValue(35.0, forKey: kCIInputRadiusKey)
-        guard let blurredImage = blurFilter.outputImage?.cropped(to: originalExtent) else { return normalizedImage }
+        // 2. Downscale the image to 1/8 size for fast and effective background estimation
+        let scale: CGFloat = 0.125
+        let scaled = clamped.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         
-        // 3. Divide the original image by the blurred image
+        // 3. Blur the downscaled image (radius 5.0 in 1/8 scale equivalent to 40.0 in full scale)
+        guard let blurFilter = CIFilter(name: "CIGaussianBlur") else { return normalizedImage }
+        blurFilter.setValue(scaled, forKey: kCIInputImageKey)
+        blurFilter.setValue(5.0, forKey: kCIInputRadiusKey)
+        guard let blurredScaled = blurFilter.outputImage else { return normalizedImage }
+        
+        // 4. Upscale the blurred background map back to the original size
+        let blurredBg = blurredScaled.transformed(by: CGAffineTransform(scaleX: 1.0 / scale, y: 1.0 / scale))
+                                     .cropped(to: originalExtent)
+        
+        // 5. Divide the original image by the blurred background map
         let divideKernel = CIBlendKernel.divide
-        var output = divideKernel.apply(foreground: ciImage, background: blurredImage) ?? ciImage
+        var output = divideKernel.apply(foreground: blurredBg, background: ciImage) ?? ciImage
 
-        // 4. Boost contrast, saturation, and brightness slightly
+        // 6. Boost contrast, saturation, and brightness slightly
         if let colorControls = CIFilter(name: "CIColorControls") {
             colorControls.setValue(output, forKey: kCIInputImageKey)
-            colorControls.setValue(1.35, forKey: kCIInputContrastKey)      // enhance contrast
-            colorControls.setValue(0.06, forKey: kCIInputBrightnessKey)    // brighten slightly
+            colorControls.setValue(1.50, forKey: kCIInputContrastKey)      // enhance contrast
+            colorControls.setValue(0.20, forKey: kCIInputBrightnessKey)    // brighten slightly
             colorControls.setValue(1.15, forKey: kCIInputSaturationKey)    // boost saturation
             if let adjusted = colorControls.outputImage {
                 output = adjusted
             }
         }
 
-        // 5. Highlight & Shadow Adjust
-        if let highlightShadow = CIFilter(name: "CIHighlightShadowAdjust") {
-            highlightShadow.setValue(output, forKey: kCIInputImageKey)
-            highlightShadow.setValue(0.15, forKey: "inputShadowAmount")
-            highlightShadow.setValue(0.95, forKey: "inputHighlightAmount")
-            if let adjusted = highlightShadow.outputImage {
-                output = adjusted
-            }
-        }
-
-        // 6. Sharpen Luminance
+        // 7. Sharpen Luminance
         if let sharpen = CIFilter(name: "CISharpenLuminance") {
             sharpen.setValue(output, forKey: kCIInputImageKey)
             sharpen.setValue(0.45, forKey: kCIInputSharpnessKey) // sharpen slightly more for extra text clarity

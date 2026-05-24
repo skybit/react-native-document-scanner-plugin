@@ -212,6 +212,108 @@ class ImageProcessor {
         return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
     }
 
+    private static func isLikelyTeacherMarkColor(red: UInt8, green: UInt8, blue: UInt8) -> Bool {
+        let r = CGFloat(red) / 255.0
+        let g = CGFloat(green) / 255.0
+        let b = CGFloat(blue) / 255.0
+        let maxValue = max(r, max(g, b))
+        let minValue = min(r, min(g, b))
+        let delta = maxValue - minValue
+        let saturation = maxValue == 0 ? 0 : delta / maxValue
+        var hue: CGFloat = 0
+
+        if delta > 0 {
+            if maxValue == r {
+                hue = ((g - b) / delta).truncatingRemainder(dividingBy: 6)
+            } else if maxValue == g {
+                hue = ((b - r) / delta) + 2
+            } else {
+                hue = ((r - g) / delta) + 4
+            }
+            hue *= 60
+            if hue < 0 {
+                hue += 360
+            }
+        }
+
+        return (hue <= 35 || hue >= 325)
+            && saturation >= 0.10
+            && maxValue >= 0.10
+            && Int(red) > Int(green) + 4
+            && Int(red) > Int(blue) + 4
+    }
+
+    private static func rgbaPixels(from image: UIImage, width: Int, height: Int) -> [UInt8]? {
+        guard let cgImage = image.cgImage else { return nil }
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return nil
+        }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return pixels
+    }
+
+    private static func imageFromRgbaPixels(_ pixels: [UInt8], width: Int, height: Int, scale: CGFloat) -> UIImage? {
+        var mutablePixels = pixels
+        guard let context = CGContext(
+            data: &mutablePixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ),
+        let cgImage = context.makeImage() else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
+    }
+
+    /// Keep teacher marks color-separable after scan enhancement darkens mid-tones.
+    private static func preserveTeacherMarkColor(from sourceImage: UIImage, in enhancedImage: UIImage) -> UIImage {
+        let source = normalizeOrientation(sourceImage)
+        let enhanced = normalizeOrientation(enhancedImage)
+        guard let sourceCg = source.cgImage, let enhancedCg = enhanced.cgImage else {
+            return enhancedImage
+        }
+
+        let width = min(sourceCg.width, enhancedCg.width)
+        let height = min(sourceCg.height, enhancedCg.height)
+        guard width > 0,
+              height > 0,
+              let sourcePixels = rgbaPixels(from: source, width: width, height: height),
+              var enhancedPixels = rgbaPixels(from: enhanced, width: width, height: height) else {
+            return enhancedImage
+        }
+
+        for pixelIndex in 0..<(width * height) {
+            let offset = pixelIndex * 4
+            if isLikelyTeacherMarkColor(
+                red: sourcePixels[offset],
+                green: sourcePixels[offset + 1],
+                blue: sourcePixels[offset + 2]
+            ) {
+                enhancedPixels[offset] = max(enhancedPixels[offset], 210)
+                enhancedPixels[offset + 1] = min(enhancedPixels[offset + 1], 72)
+                enhancedPixels[offset + 2] = min(enhancedPixels[offset + 2], 88)
+                enhancedPixels[offset + 3] = 255
+            }
+        }
+
+        return imageFromRgbaPixels(enhancedPixels, width: width, height: height, scale: enhanced.scale) ?? enhancedImage
+    }
+
     /// Render the image pixels in their displayed orientation before writing JPEG data.
     /// Downstream consumers often ignore EXIF orientation, which can turn portrait scans sideways.
     static func normalizeOrientation(_ image: UIImage) -> UIImage {
@@ -257,7 +359,10 @@ class ImageProcessor {
         } else {
             processedImage = normalizedInput
         }
-        let enhancedImage = enhanceScannedImage(processedImage)
+        let enhancedImage = preserveTeacherMarkColor(
+            from: processedImage,
+            in: enhanceScannedImage(processedImage)
+        )
         
         // Convert to JPEG data with specified quality
         let quality = CGFloat(croppedImageQuality) / 100.0

@@ -191,12 +191,42 @@ class ImageProcessor {
                     nb = (gray + (nb - gray) * saturation).toInt().coerceIn(0, 255)
                 }
 
+                if (isLikelyTeacherMarkColor(r, g, b)) {
+                    nr = nr.coerceAtLeast(210)
+                    ng = ng.coerceAtMost(72)
+                    nb = nb.coerceAtMost(88)
+                }
+
                 outPixels[i] = (0xFF000000.toInt()) or (nr shl 16) or (ng shl 8) or nb
             }
 
             val outBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             outBitmap.setPixels(outPixels, 0, width, 0, 0, width, height)
             return outBitmap
+        }
+
+        private fun isLikelyTeacherMarkColor(r: Int, g: Int, b: Int): Boolean {
+            val maxValue = maxOf(r, g, b)
+            val minValue = minOf(r, g, b)
+            val delta = maxValue - minValue
+            val saturation = if (maxValue == 0) 0.0 else delta.toDouble() / maxValue.toDouble()
+            var hue = 0.0
+
+            if (delta > 0) {
+                hue = when (maxValue) {
+                    r -> ((g - b).toDouble() / delta.toDouble()) % 6.0
+                    g -> ((b - r).toDouble() / delta.toDouble()) + 2.0
+                    else -> ((r - g).toDouble() / delta.toDouble()) + 4.0
+                }
+                hue *= 60.0
+                if (hue < 0) hue += 360.0
+            }
+
+            return (hue <= 35.0 || hue >= 325.0) &&
+                saturation >= 0.10 &&
+                maxValue >= 25 &&
+                r > g + 4 &&
+                r > b + 4
         }
 
         private fun boxBlur(pixels: IntArray, width: Int, height: Int, radius: Int): IntArray {

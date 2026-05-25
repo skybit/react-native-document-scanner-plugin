@@ -192,9 +192,9 @@ class ImageProcessor {
 
                 // 5. Red preservation: merge red content back
                 if (isLikelyTeacherMarkColor(r, g, b)) {
-                    nr = 255
-                    ng = Math.min(ng, 48)
-                    nb = Math.min(nb, 58)
+                    nr = Math.max(r, 230)
+                    ng = g
+                    nb = b
                 }
 
 

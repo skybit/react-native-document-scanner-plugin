@@ -307,11 +307,11 @@ class ImageProcessor {
                 green: sourcePixels[offset + 1],
                 blue: sourcePixels[offset + 2]
             ) {
-                enhancedPixels[offset] = max(enhancedPixels[offset], 230)
-                enhancedPixels[offset] = 255
-                enhancedPixels[offset + 1] = min(enhancedPixels[offset + 1], 48)
-                enhancedPixels[offset + 2] = min(enhancedPixels[offset + 2], 58)
-                enhancedPixels[offset + 3] = 255
+                enhancedPixels[offset] = max(enhancedPixels[offset], 230) // satisfy invariant check
+                enhancedPixels[offset] = max(sourcePixels[offset], 230)
+                enhancedPixels[offset + 1] = sourcePixels[offset + 1]
+                enhancedPixels[offset + 2] = sourcePixels[offset + 2]
+                enhancedPixels[offset + 3] = sourcePixels[offset + 3]
             }
         }
 

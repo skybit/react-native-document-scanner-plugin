@@ -182,27 +182,6 @@ class ImageProcessor {
                 var ng = (((gg - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
                 var nb = (((gb - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
 
-                // 3. Red preservation path on original channels (normalized)
-                val vrOrig = r.toFloat() / 255.0f
-                val vgOrig = g.toFloat() / 255.0f
-                val vbOrig = b.toFloat() / 255.0f
-                val rDiff = vrOrig - vgOrig
-                val bDiff = vrOrig - vbOrig
-                val redScore = Math.min(rDiff, bDiff)
-                
-                // Soft mask mapping: map score [0.15, 0.25] to [0.0, 1.0] weight
-                val wRed = ((redScore - 0.15f) / 0.10f).coerceIn(0f, 1f)
-
-                if (wRed > 0f) {
-                    val nrRed = 255
-                    val ngRed = (vg * 255f * 0.85f).toInt().coerceIn(0, 255)
-                    val nbRed = (vb * 255f * 0.85f).toInt().coerceIn(0, 255)
-
-                    nr = (nr * (1f - wRed) + nrRed * wRed).toInt().coerceIn(0, 255)
-                    ng = (ng * (1f - wRed) + ngRed * wRed).toInt().coerceIn(0, 255)
-                    nb = (nb * (1f - wRed) + nbRed * wRed).toInt().coerceIn(0, 255)
-                }
-
                 // 4. Saturation adjustment
                 if (saturation != 1.0f) {
                     val gray = (0.299f * nr + 0.587f * ng + 0.114f * nb)
@@ -210,6 +189,14 @@ class ImageProcessor {
                     ng = (gray + (ng - gray) * saturation).toInt().coerceIn(0, 255)
                     nb = (gray + (nb - gray) * saturation).toInt().coerceIn(0, 255)
                 }
+
+                // 5. Red preservation: merge red content back
+                if (isLikelyTeacherMarkColor(r, g, b)) {
+                    nr = Math.max(nr, 230)
+                    ng = Math.min(ng, 48)
+                    nb = Math.min(nb, 58)
+                }
+
 
                 outPixels[i] = (0xFF000000.toInt()) or (nr shl 16) or (ng shl 8) or nb
             }
@@ -237,10 +224,10 @@ class ImageProcessor {
             }
 
             return (hue <= 35.0 || hue >= 325.0) &&
-                saturation >= 0.10 &&
+                saturation >= 0.30 &&
                 maxValue >= 72 &&
-                r > g + 4 &&
-                r > b + 4
+                r > g + 10 &&
+                r > b + 15
         }
 
         private fun boxBlur(pixels: IntArray, width: Int, height: Int, radius: Int): IntArray {

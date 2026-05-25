@@ -194,75 +194,8 @@ class ImageProcessor {
             }
         }
 
-        // 7. Extract the red mask from the original image (redScore = min(R - G, R - B))
-        var redMask = ciImage
-        if let rMinusGMatrix = CIFilter(name: "CIColorMatrix") {
-            rMinusGMatrix.setValue(ciImage, forKey: kCIInputImageKey)
-            rMinusGMatrix.setValue(CIVector(x: 1, y: 1, z: 1, w: 0), forKey: "inputRVector")
-            rMinusGMatrix.setValue(CIVector(x: -1, y: -1, z: -1, w: 0), forKey: "inputGVector")
-            rMinusGMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
-            rMinusGMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-            rMinusGMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBiasVector")
-            
-            if let rMinusG = rMinusGMatrix.outputImage,
-               let rMinusBMatrix = CIFilter(name: "CIColorMatrix") {
-                rMinusBMatrix.setValue(ciImage, forKey: kCIInputImageKey)
-                rMinusBMatrix.setValue(CIVector(x: 1, y: 1, z: 1, w: 0), forKey: "inputRVector")
-                rMinusBMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
-                rMinusBMatrix.setValue(CIVector(x: -1, y: -1, z: -1, w: 0), forKey: "inputBVector")
-                rMinusBMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-                rMinusBMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBiasVector")
-                
-                if let rMinusB = rMinusBMatrix.outputImage,
-                   let minComposite = CIFilter(name: "CIDarkestComposite") {
-                    minComposite.setValue(rMinusG, forKey: kCIInputImageKey)
-                    minComposite.setValue(rMinusB, forKey: kCIInputBackgroundImageKey)
-                    
-                    if let redScore = minComposite.outputImage,
-                       let maskControls = CIFilter(name: "CIColorControls") {
-                        maskControls.setValue(redScore, forKey: kCIInputImageKey)
-                        maskControls.setValue(10.0, forKey: kCIInputContrastKey)
-                        maskControls.setValue(3.0, forKey: kCIInputBrightnessKey)
-                        if let adjustedMask = maskControls.outputImage,
-                           let clampFilter = CIFilter(name: "CIColorClamp") {
-                            clampFilter.setValue(adjustedMask, forKey: kCIInputImageKey)
-                            clampFilter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputMin")
-                            clampFilter.setValue(CIVector(x: 1, y: 1, z: 1, w: 1), forKey: "inputMax")
-                            if let clampedMask = clampFilter.outputImage {
-                                redMask = clampedMask
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 8. Construct the vibrant red-preserved target image from the divided image
-        var redColorImage = dividedImage
-        if let redMatrix = CIFilter(name: "CIColorMatrix") {
-            redMatrix.setValue(dividedImage, forKey: kCIInputImageKey)
-            redMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
-            redMatrix.setValue(CIVector(x: 0, y: 0.85, z: 0, w: 0), forKey: "inputGVector")
-            redMatrix.setValue(CIVector(x: 0, y: 0, z: 0.85, w: 0), forKey: "inputBVector")
-            redMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-            redMatrix.setValue(CIVector(x: 1.0, y: 0, z: 0, w: 0), forKey: "inputBiasVector")
-            if let adjusted = redMatrix.outputImage {
-                redColorImage = adjusted
-            }
-        }
-
-        // 9. Blend the red-preserved image over the pencil image using the red mask
+        // 7. Sharpen Luminance for final text clarity
         var output = pencilImage
-        if let blend = CIFilter(name: "CIBlendWithMask") {
-            blend.setValue(redColorImage, forKey: kCIInputImageKey)
-            blend.setValue(pencilImage, forKey: kCIInputBackgroundImageKey)
-            blend.setValue(redMask, forKey: "inputMaskImage")
-            if let blended = blend.outputImage {
-                output = blended
-            }
-        }
-
-        // 10. Sharpen Luminance for final text clarity
         if let sharpen = CIFilter(name: "CISharpenLuminance") {
             sharpen.setValue(output, forKey: kCIInputImageKey)
             sharpen.setValue(0.45, forKey: kCIInputSharpnessKey)
@@ -276,8 +209,10 @@ class ImageProcessor {
             return normalizedImage
         }
 
-        return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+        let enhancedImage = UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+        return preserveTeacherMarkColor(from: normalizedImage, in: enhancedImage)
     }
+
 
     private static func isLikelyTeacherMarkColor(red: UInt8, green: UInt8, blue: UInt8) -> Bool {
         let r = CGFloat(red) / 255.0
@@ -304,11 +239,12 @@ class ImageProcessor {
         }
 
         return (hue <= 35 || hue >= 325)
-            && saturation >= 0.10
+            && saturation >= 0.30
             && maxValue >= 0.28
-            && Int(red) > Int(green) + 4
-            && Int(red) > Int(blue) + 4
+            && Int(red) > Int(green) + 10
+            && Int(red) > Int(blue) + 15
     }
+
 
     private static func rgbaPixels(from image: UIImage, width: Int, height: Int) -> [UInt8]? {
         guard let cgImage = image.cgImage else { return nil }

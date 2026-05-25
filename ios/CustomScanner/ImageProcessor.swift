@@ -238,7 +238,7 @@ class ImageProcessor {
 
         return (hue <= 35 || hue >= 325)
             && saturation >= 0.10
-            && maxValue >= 0.10
+            && maxValue >= 0.28
             && Int(red) > Int(green) + 4
             && Int(red) > Int(blue) + 4
     }
@@ -304,9 +304,9 @@ class ImageProcessor {
                 green: sourcePixels[offset + 1],
                 blue: sourcePixels[offset + 2]
             ) {
-                enhancedPixels[offset] = max(enhancedPixels[offset], 210)
-                enhancedPixels[offset + 1] = min(enhancedPixels[offset + 1], 72)
-                enhancedPixels[offset + 2] = min(enhancedPixels[offset + 2], 88)
+                enhancedPixels[offset] = max(enhancedPixels[offset], 230)
+                enhancedPixels[offset + 1] = min(enhancedPixels[offset + 1], 48)
+                enhancedPixels[offset + 2] = min(enhancedPixels[offset + 2], 58)
                 enhancedPixels[offset + 3] = 255
             }
         }

@@ -192,9 +192,9 @@ class ImageProcessor {
                 }
 
                 if (isLikelyTeacherMarkColor(r, g, b)) {
-                    nr = nr.coerceAtLeast(210)
-                    ng = ng.coerceAtMost(72)
-                    nb = nb.coerceAtMost(88)
+                    nr = nr.coerceAtLeast(230)
+                    ng = ng.coerceAtMost(48)
+                    nb = nb.coerceAtMost(58)
                 }
 
                 outPixels[i] = (0xFF000000.toInt()) or (nr shl 16) or (ng shl 8) or nb
@@ -224,7 +224,7 @@ class ImageProcessor {
 
             return (hue <= 35.0 || hue >= 325.0) &&
                 saturation >= 0.10 &&
-                maxValue >= 25 &&
+                maxValue >= 72 &&
                 r > g + 4 &&
                 r > b + 4
         }

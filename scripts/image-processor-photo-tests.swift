@@ -115,6 +115,43 @@ private func averageLuma(
     return total / Double(max(count, 1))
 }
 
+private func strongestRedPixel(
+    _ image: UIImage,
+    xRange: ClosedRange<Int>,
+    yRange: ClosedRange<Int>
+) -> (red: Double, green: Double, blue: Double) {
+    guard let cgImage = image.cgImage,
+          let dataProvider = cgImage.dataProvider,
+          let data = dataProvider.data,
+          let bytes = CFDataGetBytePtr(data) else {
+        fail("Unable to read image pixels")
+    }
+
+    let bytesPerPixel = max(cgImage.bitsPerPixel / 8, 1)
+    let minX = cgImage.width * xRange.lowerBound / 100
+    let maxX = cgImage.width * xRange.upperBound / 100
+    let minY = cgImage.height * yRange.lowerBound / 100
+    let maxY = cgImage.height * yRange.upperBound / 100
+    var best = (red: 0.0, green: 255.0, blue: 255.0)
+    var bestScore = -Double.infinity
+
+    for y in minY..<maxY {
+        for x in minX..<maxX {
+            let offset = (y * cgImage.width + x) * bytesPerPixel
+            let r = Double(bytes[offset])
+            let g = Double(bytes[offset + min(1, bytesPerPixel - 1)])
+            let b = Double(bytes[offset + min(2, bytesPerPixel - 1)])
+            let score = r - max(g, b)
+            if score > bestScore {
+                bestScore = score
+                best = (r, g, b)
+            }
+        }
+    }
+
+    return best
+}
+
 private func rectangle(
     topLeft: CGPoint,
     bottomLeft: CGPoint,
@@ -233,6 +270,14 @@ struct ImageProcessorPhotoTestRunner {
         )
         if processedPaperLuma < 238 {
             fail("Expected gray paper background to be whitened like a scanned page; paper luma=\(processedPaperLuma)")
+        }
+        let strongestRed = strongestRedPixel(
+            syntheticProcessed,
+            xRange: 68...84,
+            yRange: 24...40
+        )
+        if strongestRed.red < 225 || strongestRed.green > 58 || strongestRed.blue > 70 {
+            fail("Expected teacher red mark to remain highly color-separable after scanning; rgb=\(strongestRed)")
         }
 
         assertProcessedScan(process(sourceImage, observation: nil), differsFrom: sourceImage)

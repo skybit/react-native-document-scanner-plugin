@@ -141,6 +141,21 @@ assertContains(
   'CISharpenLuminance',
   'Scan enhancement must apply mild luminance sharpening'
 );
+assertContains(
+  imageProcessor,
+  'preserveTeacherMarkColor',
+  'Scan enhancement must preserve teacher mark colors for downstream red removal'
+);
+assertContains(
+  imageProcessor,
+  'enhancedPixels[offset] = max(enhancedPixels[offset], 230)',
+  'Teacher marks should remain strongly red after scan enhancement'
+);
+assertContains(
+  imageProcessor,
+  'maxValue >= 0.28',
+  'Teacher mark preservation should not treat very dark warm strokes as red marks'
+);
 
 assertOrder(
   documentDetector,

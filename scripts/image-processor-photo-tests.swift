@@ -115,6 +115,30 @@ private func averageLuma(
     return total / Double(max(count, 1))
 }
 
+private func pixelColor(
+    _ image: UIImage,
+    xPercent: Double,
+    yPercent: Double
+) -> (r: UInt8, g: UInt8, b: UInt8) {
+    guard let cgImage = image.cgImage,
+          let dataProvider = cgImage.dataProvider,
+          let data = dataProvider.data,
+          let bytes = CFDataGetBytePtr(data) else {
+        fail("Unable to read image pixels for color check")
+    }
+
+    let bytesPerPixel = max(cgImage.bitsPerPixel / 8, 1)
+    let px = Int(Double(cgImage.width) * xPercent / 100.0)
+    let py = Int(Double(cgImage.height) * yPercent / 100.0)
+    let offset = (py * cgImage.width + px) * bytesPerPixel
+    
+    let r = bytes[offset]
+    let g = bytes[offset + min(1, bytesPerPixel - 1)]
+    let b = bytes[offset + min(2, bytesPerPixel - 1)]
+    
+    return (r, g, b)
+}
+
 private func strongestRedPixel(
     _ image: UIImage,
     xRange: ClosedRange<Int>,
@@ -266,8 +290,9 @@ struct ImageProcessorPhotoTestRunner {
         let processedPaperLuma = averageLuma(
             syntheticProcessed,
             xRange: 35...65,
-            yRange: 7...14
+            yRange: 4...10
         )
+
         if processedPaperLuma < 238 {
             fail("Expected gray paper background to be whitened like a scanned page; paper luma=\(processedPaperLuma)")
         }

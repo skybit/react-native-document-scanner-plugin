@@ -150,12 +150,11 @@ class ImageProcessor {
 
             val outPixels = IntArray(width * height)
 
-            // Magic Color Filter parameters
-            val contrast = 1.30f
-            val brightness = 60f
+            // Parameters aligned with iOS: gamma=2.2, contrast=2.4, brightness=-0.12 (scaled to 0-255 range: -30.6f)
+            val contrast = 2.40f
+            val brightness = -30.6f
             val saturation = 1.15f
             val gamma = 2.2f
-            val thresh = 0.82f
 
             for (i in origPixels.indices) {
                 val c = origPixels[i]
@@ -168,33 +167,45 @@ class ImageProcessor {
                 val bg = ((bc shr 8) and 0xFF).coerceAtLeast(1)
                 val bb = (bc and 0xFF).coerceAtLeast(1)
 
-                // Division: orig / blur
-                val vr = (r * 255 / br) / 255.0f
-                val vg = (g * 255 / bg) / 255.0f
-                val vb = (b * 255 / bb) / 255.0f
+                // 1. Division: orig / blur
+                val vr = (r.toFloat() / br.toFloat()).coerceIn(0f, 1f)
+                val vg = (g.toFloat() / bg.toFloat()).coerceIn(0f, 1f)
+                val vb = (b.toFloat() / bb.toFloat()).coerceIn(0f, 1f)
 
-                // Apply non-linear power curve to darken mid-tones (pencil) and push highlights to white
-                var nr = if (vr >= thresh) 255 else (Math.pow(vr.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
-                var ng = if (vg >= thresh) 255 else (Math.pow(vg.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
-                var nb = if (vb >= thresh) 255 else (Math.pow(vb.toDouble(), gamma.toDouble()) * 255.0).toInt().coerceIn(0, 255)
+                // 2. Normal pencil-sharpening & background-whitening path
+                val gr = Math.pow(vr.toDouble(), gamma.toDouble()).toFloat()
+                val gg = Math.pow(vg.toDouble(), gamma.toDouble()).toFloat()
+                val gb = Math.pow(vb.toDouble(), gamma.toDouble()).toFloat()
 
-                // Contrast & Brightness
-                nr = (((nr - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
-                ng = (((ng - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
-                nb = (((nb - 128) * contrast) + 128 + brightness).toInt().coerceIn(0, 255)
+                // Contrast & Brightness formula: out = ((g - 0.5) * contrast + 0.5) * 255 + brightness
+                var nr = (((gr - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
+                var ng = (((gg - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
+                var nb = (((gb - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
 
-                // Saturation adjustment
+                // 3. Red preservation path on divided channels
+                val rDiff = vr - vg
+                val bDiff = vr - vb
+                val redScore = Math.min(rDiff, bDiff)
+                
+                // Soft mask mapping: map score [0.15, 0.35] to [0.0, 1.0] weight
+                val wRed = ((redScore - 0.15f) / 0.20f).coerceIn(0f, 1f)
+
+                if (wRed > 0f) {
+                    val nrRed = 255
+                    val ngRed = (vg * 255f * 0.85f).toInt().coerceIn(0, 255)
+                    val nbRed = (vb * 255f * 0.85f).toInt().coerceIn(0, 255)
+
+                    nr = (nr * (1f - wRed) + nrRed * wRed).toInt().coerceIn(0, 255)
+                    ng = (ng * (1f - wRed) + ngRed * wRed).toInt().coerceIn(0, 255)
+                    nb = (nb * (1f - wRed) + nbRed * wRed).toInt().coerceIn(0, 255)
+                }
+
+                // 4. Saturation adjustment
                 if (saturation != 1.0f) {
                     val gray = (0.299f * nr + 0.587f * ng + 0.114f * nb)
                     nr = (gray + (nr - gray) * saturation).toInt().coerceIn(0, 255)
                     ng = (gray + (ng - gray) * saturation).toInt().coerceIn(0, 255)
                     nb = (gray + (nb - gray) * saturation).toInt().coerceIn(0, 255)
-                }
-
-                if (isLikelyTeacherMarkColor(r, g, b)) {
-                    nr = nr.coerceAtLeast(230)
-                    ng = ng.coerceAtMost(48)
-                    nb = nb.coerceAtMost(58)
                 }
 
                 outPixels[i] = (0xFF000000.toInt()) or (nr shl 16) or (ng shl 8) or nb

@@ -182,13 +182,16 @@ class ImageProcessor {
                 var ng = (((gg - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
                 var nb = (((gb - 0.5f) * contrast + 0.5f) * 255f + brightness).toInt().coerceIn(0, 255)
 
-                // 3. Red preservation path on divided channels
-                val rDiff = vr - vg
-                val bDiff = vr - vb
+                // 3. Red preservation path on original channels (normalized)
+                val vrOrig = r.toFloat() / 255.0f
+                val vgOrig = g.toFloat() / 255.0f
+                val vbOrig = b.toFloat() / 255.0f
+                val rDiff = vrOrig - vgOrig
+                val bDiff = vrOrig - vbOrig
                 val redScore = Math.min(rDiff, bDiff)
                 
-                // Soft mask mapping: map score [0.15, 0.35] to [0.0, 1.0] weight
-                val wRed = ((redScore - 0.15f) / 0.20f).coerceIn(0f, 1f)
+                // Soft mask mapping: map score [0.15, 0.25] to [0.0, 1.0] weight
+                val wRed = ((redScore - 0.15f) / 0.10f).coerceIn(0f, 1f)
 
                 if (wRed > 0f) {
                     val nrRed = 255

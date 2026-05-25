@@ -194,10 +194,10 @@ class ImageProcessor {
             }
         }
 
-        // 7. Extract the red mask from the divided image (redScore = min(vr - vg, vr - vb))
+        // 7. Extract the red mask from the original image (redScore = min(R - G, R - B))
         var redMask = ciImage
         if let rMinusGMatrix = CIFilter(name: "CIColorMatrix") {
-            rMinusGMatrix.setValue(dividedImage, forKey: kCIInputImageKey)
+            rMinusGMatrix.setValue(ciImage, forKey: kCIInputImageKey)
             rMinusGMatrix.setValue(CIVector(x: 1, y: 1, z: 1, w: 0), forKey: "inputRVector")
             rMinusGMatrix.setValue(CIVector(x: -1, y: -1, z: -1, w: 0), forKey: "inputGVector")
             rMinusGMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputBVector")
@@ -206,7 +206,7 @@ class ImageProcessor {
             
             if let rMinusG = rMinusGMatrix.outputImage,
                let rMinusBMatrix = CIFilter(name: "CIColorMatrix") {
-                rMinusBMatrix.setValue(dividedImage, forKey: kCIInputImageKey)
+                rMinusBMatrix.setValue(ciImage, forKey: kCIInputImageKey)
                 rMinusBMatrix.setValue(CIVector(x: 1, y: 1, z: 1, w: 0), forKey: "inputRVector")
                 rMinusBMatrix.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
                 rMinusBMatrix.setValue(CIVector(x: -1, y: -1, z: -1, w: 0), forKey: "inputBVector")
@@ -221,10 +221,16 @@ class ImageProcessor {
                     if let redScore = minComposite.outputImage,
                        let maskControls = CIFilter(name: "CIColorControls") {
                         maskControls.setValue(redScore, forKey: kCIInputImageKey)
-                        maskControls.setValue(5.0, forKey: kCIInputContrastKey)
-                        maskControls.setValue(1.25, forKey: kCIInputBrightnessKey)
-                        if let adjustedMask = maskControls.outputImage {
-                            redMask = adjustedMask
+                        maskControls.setValue(10.0, forKey: kCIInputContrastKey)
+                        maskControls.setValue(3.0, forKey: kCIInputBrightnessKey)
+                        if let adjustedMask = maskControls.outputImage,
+                           let clampFilter = CIFilter(name: "CIColorClamp") {
+                            clampFilter.setValue(adjustedMask, forKey: kCIInputImageKey)
+                            clampFilter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputMin")
+                            clampFilter.setValue(CIVector(x: 1, y: 1, z: 1, w: 1), forKey: "inputMax")
+                            if let clampedMask = clampFilter.outputImage {
+                                redMask = clampedMask
+                            }
                         }
                     }
                 }

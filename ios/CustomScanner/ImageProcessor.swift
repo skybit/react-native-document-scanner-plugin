@@ -223,12 +223,14 @@ class ImageProcessor {
         let delta = maxValue - minValue
         let saturation = maxValue == 0 ? 0 : delta / maxValue
 
-        // We use maxValue >= 0.12 to capture dark/shadowed red strokes.
-        // We include maxValue >= 0.28 to satisfy the static invariant assertion check.
+        let nextHighestChannel = max(g, b)
+        let redDominance = r - nextHighestChannel
+
         return saturation >= 0.25
-            && (maxValue >= 0.12 || maxValue >= 0.28)
-            && Int(red) > Int(green) + 12
-            && Int(red) > Int(blue) + 20
+            && maxValue >= 0.28
+            && redDominance >= 0.16
+            && r >= g * 1.45
+            && r >= b * 1.65
     }
 
 
@@ -298,8 +300,7 @@ class ImageProcessor {
                 green: sourcePixels[offset + 1],
                 blue: sourcePixels[offset + 2]
             ) {
-                enhancedPixels[offset] = max(enhancedPixels[offset], 230) // satisfy invariant check
-                enhancedPixels[offset] = max(sourcePixels[offset], 230)
+                enhancedPixels[offset] = sourcePixels[offset]
                 enhancedPixels[offset + 1] = sourcePixels[offset + 1]
                 enhancedPixels[offset + 2] = sourcePixels[offset + 2]
                 enhancedPixels[offset + 3] = sourcePixels[offset + 3]

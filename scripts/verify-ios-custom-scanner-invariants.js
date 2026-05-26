@@ -154,13 +154,18 @@ assertContains(
 );
 assertContains(
   imageProcessor,
-  'enhancedPixels[offset] = max(enhancedPixels[offset], 230)',
-  'Teacher marks should remain strongly red after scan enhancement'
+  'enhancedPixels[offset] = sourcePixels[offset]',
+  'Teacher marks should keep their original red channel after scan enhancement'
 );
 assertContains(
   imageProcessor,
   'maxValue >= 0.28',
   'Teacher mark preservation should not treat very dark warm strokes as red marks'
+);
+assertContains(
+  imageProcessor,
+  'redDominance >= 0.16',
+  'Teacher mark preservation should require red to dominate neighboring channels'
 );
 assertNotContains(
   imageProcessor,

@@ -64,6 +64,30 @@ private func makeSyntheticSkewedPaperImage() -> (image: UIImage, observation: VN
     return (image, observation)
 }
 
+private func makeSyntheticColorPreservationImage() -> UIImage {
+    let size = CGSize(width: 420, height: 280)
+    let renderer = UIGraphicsImageRenderer(size: size)
+
+    return renderer.image { context in
+        UIColor(white: 0.76, alpha: 1).setFill()
+        context.fill(CGRect(origin: .zero, size: size))
+
+        UIColor(red: 0.18, green: 0.10, blue: 0.09, alpha: 1).setStroke()
+        let warmBlackPath = UIBezierPath()
+        warmBlackPath.move(to: CGPoint(x: 70, y: 88))
+        warmBlackPath.addLine(to: CGPoint(x: 350, y: 88))
+        warmBlackPath.lineWidth = 14
+        warmBlackPath.stroke()
+
+        UIColor(red: 0.82, green: 0.08, blue: 0.06, alpha: 1).setStroke()
+        let redPath = UIBezierPath()
+        redPath.move(to: CGPoint(x: 92, y: 184))
+        redPath.addLine(to: CGPoint(x: 330, y: 212))
+        redPath.lineWidth = 12
+        redPath.stroke()
+    }
+}
+
 private func process(_ image: UIImage, observation: VNRectangleObservation?) -> UIImage {
     let processedBase64: String
     do {
@@ -301,8 +325,27 @@ struct ImageProcessorPhotoTestRunner {
             xRange: 68...84,
             yRange: 24...40
         )
-        if strongestRed.red < 225 || strongestRed.green > 58 || strongestRed.blue > 70 {
+        if strongestRed.red < 190 || strongestRed.green > 70 || strongestRed.blue > 80 {
             fail("Expected teacher red mark to remain highly color-separable after scanning; rgb=\(strongestRed)")
+        }
+
+        let colorPreservationSource = makeSyntheticColorPreservationImage()
+        let colorPreservationProcessed = ImageProcessor.enhanceScannedImage(colorPreservationSource)
+        let warmBlackStroke = strongestRedPixel(
+            colorPreservationProcessed,
+            xRange: 16...84,
+            yRange: 25...38
+        )
+        if warmBlackStroke.red > 190 && warmBlackStroke.red - max(warmBlackStroke.green, warmBlackStroke.blue) > 90 {
+            fail("Expected warm black strokes to stay neutral instead of being recolored red; rgb=\(warmBlackStroke)")
+        }
+        let preservedRedStroke = strongestRedPixel(
+            colorPreservationProcessed,
+            xRange: 18...82,
+            yRange: 62...82
+        )
+        if preservedRedStroke.red < 190 || preservedRedStroke.green > 70 || preservedRedStroke.blue > 80 {
+            fail("Expected true red teacher mark to remain protected; rgb=\(preservedRedStroke)")
         }
 
         assertProcessedScan(process(sourceImage, observation: nil), differsFrom: sourceImage)

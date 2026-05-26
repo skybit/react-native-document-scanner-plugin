@@ -252,17 +252,22 @@ class ImageProcessor {
     }
 
     private static func imageFromRgbaPixels(_ pixels: [UInt8], width: Int, height: Int, scale: CGFloat) -> UIImage? {
-        var mutablePixels = pixels
-        guard let context = CGContext(
-            data: &mutablePixels,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ),
-        let cgImage = context.makeImage() else {
+        let bytesPerRow = width * 4
+        let pixelData = Data(pixels)
+        guard let dataProvider = CGDataProvider(data: pixelData as CFData),
+              let cgImage = CGImage(
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: bytesPerRow,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: dataProvider,
+                decode: nil,
+                shouldInterpolate: true,
+                intent: .defaultIntent
+              ) else {
             return nil
         }
 

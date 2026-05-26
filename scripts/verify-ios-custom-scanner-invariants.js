@@ -13,6 +13,12 @@ function assertContains(source, needle, message) {
   }
 }
 
+function assertNotContains(source, needle, message) {
+  if (source.includes(needle)) {
+    throw new Error(message);
+  }
+}
+
 function assertOrder(source, first, second, message) {
   const firstIndex = source.indexOf(first);
   const secondIndex = source.indexOf(second);
@@ -155,6 +161,16 @@ assertContains(
   imageProcessor,
   'maxValue >= 0.28',
   'Teacher mark preservation should not treat very dark warm strokes as red marks'
+);
+assertNotContains(
+  imageProcessor,
+  'data: &mutablePixels',
+  'Rebuilt RGBA images must not pass a Swift Array pointer directly to CGContext'
+);
+assertContains(
+  imageProcessor,
+  'CGDataProvider(data:',
+  'Rebuilt RGBA images must use a retained data provider so CoreGraphics copies from stable memory'
 );
 
 assertOrder(

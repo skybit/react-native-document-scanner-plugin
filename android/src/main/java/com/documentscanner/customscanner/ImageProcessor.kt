@@ -211,23 +211,11 @@ class ImageProcessor {
             val minValue = minOf(r, g, b)
             val delta = maxValue - minValue
             val saturation = if (maxValue == 0) 0.0 else delta.toDouble() / maxValue.toDouble()
-            var hue = 0.0
 
-            if (delta > 0) {
-                hue = when (maxValue) {
-                    r -> ((g - b).toDouble() / delta.toDouble()) % 6.0
-                    g -> ((b - r).toDouble() / delta.toDouble()) + 2.0
-                    else -> ((r - g).toDouble() / delta.toDouble()) + 4.0
-                }
-                hue *= 60.0
-                if (hue < 0) hue += 360.0
-            }
-
-            return (hue <= 35.0 || hue >= 325.0) &&
-                saturation >= 0.30 &&
-                maxValue >= 38 &&
-                r > g + 10 &&
-                r > b + 15
+            return saturation >= 0.25 &&
+                maxValue >= 30 &&
+                r > g + 12 &&
+                r > b + 20
         }
 
         private fun boxBlur(pixels: IntArray, width: Int, height: Int, radius: Int): IntArray {

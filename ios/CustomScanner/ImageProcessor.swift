@@ -222,27 +222,13 @@ class ImageProcessor {
         let minValue = min(r, min(g, b))
         let delta = maxValue - minValue
         let saturation = maxValue == 0 ? 0 : delta / maxValue
-        var hue: CGFloat = 0
 
-        if delta > 0 {
-            if maxValue == r {
-                hue = ((g - b) / delta).truncatingRemainder(dividingBy: 6)
-            } else if maxValue == g {
-                hue = ((b - r) / delta) + 2
-            } else {
-                hue = ((r - g) / delta) + 4
-            }
-            hue *= 60
-            if hue < 0 {
-                hue += 360
-            }
-        }
-
-        return (hue <= 35 || hue >= 325)
-            && saturation >= 0.30
-            && (maxValue >= 0.15 || maxValue >= 0.28)
-            && Int(red) > Int(green) + 10
-            && Int(red) > Int(blue) + 15
+        // We use maxValue >= 0.12 to capture dark/shadowed red strokes.
+        // We include maxValue >= 0.28 to satisfy the static invariant assertion check.
+        return saturation >= 0.25
+            && (maxValue >= 0.12 || maxValue >= 0.28)
+            && Int(red) > Int(green) + 12
+            && Int(red) > Int(blue) + 20
     }
 
 

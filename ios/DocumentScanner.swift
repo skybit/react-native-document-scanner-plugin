@@ -23,6 +23,7 @@ public class RNDocumentScanner: NSObject {
         let autoConfirm = options["autoConfirm"] as? Bool ?? true
         let responseType = options["responseType"] as? String ?? "imageFilePath"
         let croppedImageQuality = options["croppedImageQuality"] as? Int ?? 100
+        let bypassColorFilter = options["bypassColorFilter"] as? Bool ?? false
         
         DispatchQueue.main.async {
             if let maxNum = maxNumDocuments, maxNum > 0 {
@@ -32,6 +33,7 @@ public class RNDocumentScanner: NSObject {
                     autoConfirm: autoConfirm,
                     responseType: responseType,
                     croppedImageQuality: croppedImageQuality,
+                    bypassColorFilter: bypassColorFilter,
                     resolve: resolve,
                     reject: reject
                 )
@@ -53,6 +55,7 @@ public class RNDocumentScanner: NSObject {
         autoConfirm: Bool,
         responseType: String,
         croppedImageQuality: Int,
+        bypassColorFilter: Bool,
         resolve: @escaping RCTPromiseResolveBlock,
         reject: @escaping RCTPromiseRejectBlock
     ) {
@@ -66,6 +69,7 @@ public class RNDocumentScanner: NSObject {
             scanner.autoConfirm = autoConfirm
             scanner.responseType = responseType
             scanner.croppedImageQuality = croppedImageQuality
+            scanner.bypassColorFilter = bypassColorFilter
             scanner.delegate = delegateHandler
             scanner.modalPresentationStyle = .fullScreen
             

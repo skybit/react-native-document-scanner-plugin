@@ -31,6 +31,9 @@ class ScannerViewController: UIViewController {
     /// JPEG quality 0-100
     var croppedImageQuality: Int = 100
     
+    /// Bypasses custom color processing/enhancement
+    var bypassColorFilter: Bool = false
+    
     // MARK: - Components
     
     private let cameraManager = CameraManager()
@@ -301,7 +304,8 @@ class ScannerViewController: UIViewController {
                     observation: self.currentObservation,
                     pageNumber: pageNumber,
                     responseType: self.responseType,
-                    croppedImageQuality: self.croppedImageQuality
+                    croppedImageQuality: self.croppedImageQuality,
+                    bypassColorFilter: self.bypassColorFilter
                 )
                 
                 DispatchQueue.main.async {

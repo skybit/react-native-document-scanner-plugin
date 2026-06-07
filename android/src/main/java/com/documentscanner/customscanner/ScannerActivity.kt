@@ -41,6 +41,7 @@ class ScannerActivity : Activity() {
         const val EXTRA_AUTO_CONFIRM = "autoConfirm"
         const val EXTRA_RESPONSE_TYPE = "responseType"
         const val EXTRA_CROPPED_IMAGE_QUALITY = "croppedImageQuality"
+        const val EXTRA_BYPASS_COLOR_FILTER = "bypassColorFilter"
         const val EXTRA_SCANNED_IMAGES = "scannedImages"
         private const val CAMERA_PERMISSION_REQUEST = 1001
     }
@@ -50,6 +51,7 @@ class ScannerActivity : Activity() {
     private var autoConfirm = true
     private var responseType = "imageFilePath"
     private var croppedImageQuality = 100
+    private var bypassColorFilter = false
 
     // Components
     private lateinit var cameraManager: CameraManager
@@ -107,6 +109,7 @@ class ScannerActivity : Activity() {
         autoConfirm = intent.getBooleanExtra(EXTRA_AUTO_CONFIRM, true)
         responseType = intent.getStringExtra(EXTRA_RESPONSE_TYPE) ?: "imageFilePath"
         croppedImageQuality = intent.getIntExtra(EXTRA_CROPPED_IMAGE_QUALITY, 100)
+        bypassColorFilter = intent.getBooleanExtra(EXTRA_BYPASS_COLOR_FILTER, false)
 
         // Fullscreen dark theme
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
@@ -412,7 +415,7 @@ class ScannerActivity : Activity() {
             val corrected = ImageProcessor.applyPerspectiveCorrection(rotatedBitmap, currentCorners)
 
             // 3. Enhance document: division flat-field filter
-            val enhanced = ImageProcessor.enhanceDocument(corrected)
+            val enhanced = if (bypassColorFilter) corrected else ImageProcessor.enhanceDocument(corrected)
 
             // 4. Save/encode enhanced bitmap
             val result = when (responseType) {

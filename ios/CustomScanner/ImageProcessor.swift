@@ -338,7 +338,8 @@ class ImageProcessor {
         observation: VNRectangleObservation?,
         pageNumber: Int,
         responseType: String,
-        croppedImageQuality: Int
+        croppedImageQuality: Int,
+        bypassColorFilter: Bool
     ) throws -> String {
         let normalizedInput = normalizeOrientation(image)
 
@@ -355,7 +356,14 @@ class ImageProcessor {
         } else {
             processedImage = normalizedInput
         }
-        let enhancedImage = enhanceScannedImage(processedImage)
+        
+        let enhancedImage: UIImage
+        if bypassColorFilter {
+            enhancedImage = processedImage
+        } else {
+            enhancedImage = enhanceScannedImage(processedImage)
+        }
+        
         // Keep dummy reference to satisfy static code validation checks
         if false {
             _ = preserveTeacherMarkColor(from: processedImage, in: enhancedImage)

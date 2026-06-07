@@ -1,5 +1,5 @@
 import type { ConfigPlugin } from '@expo/config-plugins';
-declare const _default: ConfigPlugin<{
+declare const _default: ConfigPlugin<void | {
     cameraPermission?: string;
-} | void>;
+}>;
 export default _default;

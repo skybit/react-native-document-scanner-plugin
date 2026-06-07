@@ -32,6 +32,12 @@ export interface ScanDocumentOptions {
    * @default: true
    */
   autoConfirm?: boolean;
+
+  /**
+   * When true, bypasses custom color processing/enhancement and returns the image with original/unadjusted colors.
+   * @default: false
+   */
+  bypassColorFilter?: boolean;
 }
 
 export enum ResponseType {

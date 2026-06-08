@@ -414,8 +414,8 @@ class ScannerActivity : Activity() {
             // 2. Perform perspective correction
             val corrected = ImageProcessor.applyPerspectiveCorrection(rotatedBitmap, currentCorners)
 
-            // 3. Enhance document: division flat-field filter
-            val enhanced = if (bypassColorFilter) corrected else ImageProcessor.enhanceDocument(corrected)
+            // 3. Enhance document: division flat-field filter, or light correction in bypass mode
+            val enhanced = if (bypassColorFilter) ImageProcessor.applyLightBrightnessCorrection(corrected) else ImageProcessor.enhanceDocument(corrected)
 
             // 4. Save/encode enhanced bitmap
             val result = when (responseType) {

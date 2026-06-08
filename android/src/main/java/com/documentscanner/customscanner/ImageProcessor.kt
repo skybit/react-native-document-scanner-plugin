@@ -206,6 +206,46 @@ class ImageProcessor {
             return outBitmap
         }
 
+        /**
+         * Apply a gentle brightness correction to make the captured photo
+         * closer to what the user saw in the camera preview.
+         * Used when bypassColorFilter is true (no full enhancement).
+         */
+        fun applyLightBrightnessCorrection(bitmap: Bitmap): Bitmap {
+            val width = bitmap.width
+            val height = bitmap.height
+            val pixels = IntArray(width * height)
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+            // Gentle gamma < 1 lifts mid-tones (brightens without blowing highlights)
+            val gamma = 0.88
+            val brightness = 10.2f   // +0.04 * 255
+            val contrast = 1.05f
+
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                var r = ((c shr 16) and 0xFF) / 255.0
+                var g = ((c shr 8) and 0xFF) / 255.0
+                var b = (c and 0xFF) / 255.0
+
+                // 1. Gamma correction (< 1 brightens)
+                r = Math.pow(r, gamma)
+                g = Math.pow(g, gamma)
+                b = Math.pow(b, gamma)
+
+                // 2. Contrast & brightness: out = ((v - 0.5) * contrast + 0.5) * 255 + brightness
+                var ri = (((r - 0.5) * contrast + 0.5) * 255.0 + brightness).toInt().coerceIn(0, 255)
+                var gi = (((g - 0.5) * contrast + 0.5) * 255.0 + brightness).toInt().coerceIn(0, 255)
+                var bi = (((b - 0.5) * contrast + 0.5) * 255.0 + brightness).toInt().coerceIn(0, 255)
+
+                pixels[i] = (0xFF000000.toInt()) or (ri shl 16) or (gi shl 8) or bi
+            }
+
+            val outBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            outBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+            return outBitmap
+        }
+
         private fun isLikelyTeacherMarkColor(r: Int, g: Int, b: Int): Boolean {
             val maxValue = maxOf(r, g, b)
             val minValue = minOf(r, g, b)

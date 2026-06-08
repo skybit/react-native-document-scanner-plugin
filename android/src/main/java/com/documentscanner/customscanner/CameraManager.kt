@@ -39,6 +39,7 @@ class CameraManager(private val context: Context) {
 
     // Camera characteristics
     private var previewSize: Size = Size(1920, 1080)
+    private var exposureCompensation: Int = 0
 
     /**
      * Start the camera preview on the given TextureView
@@ -93,6 +94,9 @@ class CameraManager(private val context: Context) {
                 addTarget(reader.surface)
                 set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
                 set(CaptureRequest.JPEG_QUALITY, 100.toByte())
+                if (exposureCompensation != 0) {
+                    set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, exposureCompensation)
+                }
             }
 
             session.capture(captureBuilder.build(), object : CameraCaptureSession.CaptureCallback() {
@@ -128,6 +132,15 @@ class CameraManager(private val context: Context) {
 
             val characteristics = manager.getCameraCharacteristics(cameraId)
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+
+            // Calculate exposure compensation index for +0.5 EV to brighten captures
+            val aeRange = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+            val aeStep = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)
+            if (aeRange != null && aeStep != null && aeStep.toFloat() > 0f) {
+                val desiredEV = 0.5f
+                val index = (desiredEV / aeStep.toFloat()).toInt()
+                exposureCompensation = index.coerceIn(aeRange.lower, aeRange.upper)
+            }
 
             // Select appropriate preview size
             map?.getOutputSizes(SurfaceTexture::class.java)?.let { sizes ->
@@ -181,6 +194,9 @@ class CameraManager(private val context: Context) {
             val previewRequest = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(previewSurface)
                 set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                if (exposureCompensation != 0) {
+                    set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, exposureCompensation)
+                }
             }
 
             camera.createCaptureSession(

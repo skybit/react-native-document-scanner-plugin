@@ -213,6 +213,77 @@ class ImageProcessor {
         return preserveTeacherMarkColor(from: normalizedImage, in: enhancedImage)
     }
 
+    /// Apply a gentle brightness correction to make the captured photo
+    /// closer to what the user saw in the camera preview.
+    /// Used when bypassColorFilter is true (no full enhancement).
+    static func applyLightBrightnessCorrection(_ image: UIImage) -> UIImage {
+        let normalizedImage = normalizeOrientation(image)
+        guard let ciImage = CIImage(image: normalizedImage) else { return normalizedImage }
+
+        // Gentle gamma < 1 lifts mid-tones (brightens without blowing highlights)
+        var output = ciImage
+        if let gamma = CIFilter(name: "CIGammaAdjust") {
+            gamma.setValue(output, forKey: kCIInputImageKey)
+            gamma.setValue(0.88, forKey: "inputPower")  // < 1 brightens
+            if let adjusted = gamma.outputImage {
+                output = adjusted
+            }
+        }
+
+        // Small brightness bump and very slight contrast boost
+        if let colorControls = CIFilter(name: "CIColorControls") {
+            colorControls.setValue(output, forKey: kCIInputImageKey)
+            colorControls.setValue(0.04, forKey: kCIInputBrightnessKey)
+            colorControls.setValue(1.05, forKey: kCIInputContrastKey)
+            colorControls.setValue(1.0, forKey: kCIInputSaturationKey)
+            if let adjusted = colorControls.outputImage {
+                output = adjusted
+            }
+        }
+
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let cgImage = context.createCGImage(output, from: ciImage.extent) else {
+            return normalizedImage
+        }
+
+        return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+    }
+    /// Apply a gentle brightness correction to make the captured photo
+    /// closer to what the user saw in the camera preview.
+    /// Used when bypassColorFilter is true (no full enhancement).
+    static func applyLightBrightnessCorrection(_ image: UIImage) -> UIImage {
+        let normalizedImage = normalizeOrientation(image)
+        guard let ciImage = CIImage(image: normalizedImage) else { return normalizedImage }
+
+        // Gentle gamma < 1 lifts mid-tones (brightens without blowing highlights)
+        var output = ciImage
+        if let gamma = CIFilter(name: "CIGammaAdjust") {
+            gamma.setValue(output, forKey: kCIInputImageKey)
+            gamma.setValue(0.88, forKey: "inputPower")  // < 1 brightens
+            if let adjusted = gamma.outputImage {
+                output = adjusted
+            }
+        }
+
+        // Small brightness bump and very slight contrast boost
+        if let colorControls = CIFilter(name: "CIColorControls") {
+            colorControls.setValue(output, forKey: kCIInputImageKey)
+            colorControls.setValue(0.04, forKey: kCIInputBrightnessKey)
+            colorControls.setValue(1.05, forKey: kCIInputContrastKey)
+            colorControls.setValue(1.0, forKey: kCIInputSaturationKey)
+            if let adjusted = colorControls.outputImage {
+                output = adjusted
+            }
+        }
+
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let cgImage = context.createCGImage(output, from: ciImage.extent) else {
+            return normalizedImage
+        }
+
+        return UIImage(cgImage: cgImage, scale: normalizedImage.scale, orientation: .up)
+    }
+
 
     private static func isLikelyTeacherMarkColor(red: UInt8, green: UInt8, blue: UInt8) -> Bool {
         let r = CGFloat(red) / 255.0
@@ -359,7 +430,7 @@ class ImageProcessor {
         
         let enhancedImage: UIImage
         if bypassColorFilter {
-            enhancedImage = processedImage
+            enhancedImage = applyLightBrightnessCorrection(processedImage)
         } else {
             enhancedImage = enhanceScannedImage(processedImage)
         }

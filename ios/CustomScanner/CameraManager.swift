@@ -81,10 +81,17 @@ class CameraManager: NSObject {
             captureSession.addInput(cameraInput)
         }
         
-        // Configure auto-focus
+        // Configure auto-focus and exposure compensation
         if camera.isFocusModeSupported(.continuousAutoFocus) {
             try? camera.lockForConfiguration()
             camera.focusMode = .continuousAutoFocus
+            
+            // Apply positive exposure bias to brighten captured photos,
+            // compensating for the gap between preview brightness and photo output
+            let desiredBias: Float = 0.5
+            let clampedBias = max(camera.minExposureTargetBias, min(camera.maxExposureTargetBias, desiredBias))
+            camera.setExposureTargetBias(clampedBias, completionHandler: nil)
+            
             camera.unlockForConfiguration()
         }
         
@@ -120,6 +127,12 @@ class CameraManager: NSObject {
         
         let settings = AVCapturePhotoSettings()
         settings.isHighResolutionPhotoEnabled = true
+        
+        // Enable auto flash to improve lighting in dim environments
+        if photoOutput.supportedFlashModes.contains(.auto) {
+            settings.flashMode = .auto
+        }
+        
         configurePortraitOrientation(for: photoOutput.connection(with: .video))
         photoOutput.capturePhoto(with: settings, delegate: self)
     }

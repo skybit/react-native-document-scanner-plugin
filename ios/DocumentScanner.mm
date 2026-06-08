@@ -36,6 +36,10 @@ RCT_EXPORT_MODULE()
     scanDocumentOptions[@"autoConfirm"] = @(options.autoConfirm().value());
   }
 
+  if (options.bypassColorFilter().has_value()) {
+    scanDocumentOptions[@"bypassColorFilter"] = @(options.bypassColorFilter().value());
+  }
+
   self.activeDocumentScanner = [RNDocumentScanner new];
 
   __weak DocumentScanner *weakSelf = self;

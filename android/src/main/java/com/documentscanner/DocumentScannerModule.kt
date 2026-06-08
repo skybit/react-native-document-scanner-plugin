@@ -89,6 +89,11 @@ class DocumentScannerModule(reactContext: ReactApplicationContext) :
     } else {
       "imageFilePath"
     }
+    val bypassColorFilter = if (options.hasKey("bypassColorFilter")) {
+      options.getBoolean("bypassColorFilter")
+    } else {
+      false
+    }
 
     val scannerLauncher = (currentActivity as ComponentActivity).activityResultRegistry.register(
       "custom-document-scanner",
@@ -118,6 +123,7 @@ class DocumentScannerModule(reactContext: ReactApplicationContext) :
       putExtra(ScannerActivity.EXTRA_AUTO_CONFIRM, autoConfirm)
       putExtra(ScannerActivity.EXTRA_RESPONSE_TYPE, responseType)
       putExtra(ScannerActivity.EXTRA_CROPPED_IMAGE_QUALITY, croppedImageQuality)
+      putExtra(ScannerActivity.EXTRA_BYPASS_COLOR_FILTER, bypassColorFilter)
     }
 
     scannerLauncher.launch(intent)

@@ -96,7 +96,8 @@ private func process(_ image: UIImage, observation: VNRectangleObservation?) -> 
             observation: observation,
             pageNumber: 0,
             responseType: ResponseType.base64,
-            croppedImageQuality: 90
+            croppedImageQuality: 90,
+            bypassColorFilter: false
         )
     } catch {
         fail("processImage threw \(error)")
